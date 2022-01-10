@@ -1,0 +1,8 @@
+[package]
+name = "secubot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serenity = { version = "0.10", default-features = false, features = ["builder", "cache", "client", "gateway", "model", "http", "utils", "rustls_backend", "unstable_discord_api"] }
+tokio = { version = "1.15.0",	features = ["full"] }

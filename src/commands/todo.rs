@@ -34,7 +34,14 @@ const TODO_SUBCOMMAND_ADD: &'static str = "add";
 const TODO_SUBCOMMAND_DELETE: &'static str = "delete";
 const TODO_SUBCOMMAND_COMPLETE: &'static str = "complete";
 
-type TodoResult = Result<String, String>;
+type TodoEntry = (u64, String);
+
+enum TodoReturn {
+    Text(String),
+    Fields(Vec<TodoEntry>),
+}
+
+type TodoResult = Result<TodoReturn, String>;
 
 pub struct TodoCommand;
 
@@ -54,27 +61,25 @@ impl TodoCommand {
         match results {
             Ok(todo_list) => {
                 println!("{} todos", todo_list.len());
-                let output: String = todo_list
-                    .iter()
-                    .map(|t| format!("[ ] {:>3} | {}", t.id, t.todo))
-                    .collect::<Vec<String>>()
-                    .join("\n");
+                let output: Vec<TodoEntry> = todo_list
+                    .into_iter()
+                    .map(|t| (t.id as u64, t.todo))
+                    .collect();
                 if output.is_empty() {
-                    Ok(String::from(
-                        "There is no incompleted TODOs in that channel.",
-                    ))
+                    Ok(TodoReturn::Text(String::from(
+                        "There are no incompleted TODOs in that channel.",
+                    )))
                 } else {
-                    let top_line = "=== TODOs ===";
-                    Ok(format!("{}\n{}", top_line, output))
+                    Ok(TodoReturn::Fields(output))
                 }
             }
             Err(NotFound) => {
                 println!("Not found");
-                Ok(String::from(""))
+                Ok(TodoReturn::Text(String::from("")))
             }
             Err(_) => {
                 println!("Err");
-                Ok(String::from(""))
+                Ok(TodoReturn::Text(String::from("")))
             }
         }
     }
@@ -82,32 +87,36 @@ impl TodoCommand {
     fn add(&self, db: &Conn, channelid: ChannelId, text: String) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
-        let new_todo = NewTodo {
-            channel_id: &(channelid.0 as i64),
-            todo: &text,
-            creation_date: &time.to_string(),
-        };
+        if text.len() > 1024 {
+            Err(String::from("Content can't have more than 1024 characters"))
+        } else {
+            let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+            let new_todo = NewTodo {
+                channel_id: &(channelid.0 as i64),
+                todo: &text,
+                creation_date: &time.to_string(),
+            };
 
-        diesel::insert_into(todos)
-            .values(&new_todo)
-            .execute(&*db.lock().unwrap())
-            .expect("Error while adding to database.");
+            diesel::insert_into(todos)
+                .values(&new_todo)
+                .execute(&*db.lock().unwrap())
+                .expect("Error while adding to database.");
 
-        Ok(format!("TODO ``{}`` added", &text))
+            Ok(TodoReturn::Text(format!("TODO ``{}`` added", &text)))
+        }
     }
 
-    fn delete(&self, db: &Conn, channelid: ChannelId, todo_id: &i64) -> TodoResult {
+    fn delete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         diesel::delete(todos.find(*todo_id as i32))
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(String::from("TODO deleted."))
+        Ok(TodoReturn::Text(String::from("TODO deleted.")))
     }
 
-    fn complete(&self, db: &Conn, channelid: ChannelId, todo_id: &i64) -> TodoResult {
+    fn complete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
@@ -117,7 +126,7 @@ impl TodoCommand {
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(String::from("TODO completed"))
+        Ok(TodoReturn::Text(String::from("TODO completed")))
     }
 }
 
@@ -233,18 +242,34 @@ impl Command for TodoCommand {
             }
         };
 
-        let response_text = match result {
+        let response_data = match result {
             Ok(content) => content,
-            Err(error) => {
-                format!("ERROR: {}", error)
-            }
+            Err(error) => TodoReturn::Text(format!("ERROR: {}", error)),
         };
 
         command
             .create_interaction_response(&ctx.http, |response| {
                 response
                     .kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| message.content(response_text))
+                    .interaction_response_data(|message| {
+                        message.embed(|embed| match response_data {
+                            TodoReturn::Text(text) => embed.description(text),
+                            TodoReturn::Fields(fields) => {
+                                let mut new_fields: Vec<(u64, String, bool)> = fields
+                                    .into_iter()
+                                    .map(|(x, y)| {
+                                        if y.len() > 25 {
+                                            (x, y, false)
+                                        } else {
+                                            (x, y, true)
+                                        }
+                                    })
+                                    .collect();
+                                new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));
+                                embed.title("TODOs").fields(new_fields)
+                            }
+                        })
+                    })
             })
             .await?;
 

@@ -1,96 +1,256 @@
-use std::{
-    fmt,
-    str::FromStr,
-};
+use async_trait::async_trait;
 
-use serenity::model::interactions::application_command::{
-    ApplicationCommandInteraction,
-    ApplicationCommandInteractionDataOption,
-    ApplicationCommandInteractionDataOptionValue as OptionValue,
-    ApplicationCommandInteractionDataOptionValue::{
-        String as OptionString,
-        Integer as OptionInteger,
+use serenity::{
+    builder::CreateApplicationCommand,
+    client::Context,
+    model::{
+        id::ChannelId,
+        interactions::{
+            application_command::{
+                ApplicationCommandInteraction,
+                ApplicationCommandInteractionDataOptionValue::Integer as OptInteger,
+                ApplicationCommandInteractionDataOptionValue::String as OptString,
+                ApplicationCommandOptionType,
+            },
+            InteractionResponseType,
+        },
     },
 };
 
+use chrono::{NaiveDateTime, Utc};
+use diesel::result::Error::NotFound;
+
 use crate::{
-    Handler,
-    commands::Command
+    commands::{Command, CommandResult},
+    models::*,
+    secubot::{Conn, Secubot},
+    *,
 };
 
+const TODO_COMMAND: &'static str = "todo";
+const TODO_COMMAND_DESC: &'static str = "Todo";
+const TODO_SUBCOMMAND_LIST: &'static str = "list";
+const TODO_SUBCOMMAND_ADD: &'static str = "add";
+const TODO_SUBCOMMAND_DELETE: &'static str = "delete";
+const TODO_SUBCOMMAND_COMPLETE: &'static str = "complete";
 
-pub struct Todo;
+type TodoResult = Result<String, String>;
 
-#[derive(Debug)]
-pub enum TodoActions {
-    List,
-    Add,
-    Delete,
-    Complete,
-}
+pub struct TodoCommand;
 
-impl Todo {
-    fn list(db: &sqlx::SqlitePool, channelid: u64) -> String {
-        format!("todos on channel {}", channelid)
+impl TodoCommand {
+    pub fn new() -> Self {
+        Self {}
     }
-    fn add(db: &sqlx::SqlitePool, channelid: u64, author: u64, text: String) -> String {
-        format!("added todo on channel {}", channelid)
-    }
-    fn delete(db: &sqlx::SqlitePool, channelid: u64, id: u32) -> String {
-        format!("deleted todo on channel {}", channelid)
-    }
-    fn complete(db: &sqlx::SqlitePool, channelid: u64, id: u32) -> String {
-        format!("completed todo on channel {}", channelid)
-    }
-}
 
-impl Command for Todo {
-    fn execute(handler: &Handler, interaction: &ApplicationCommandInteraction) -> String {
-        let options = &interaction.data.options.get(0).unwrap();
-        println!("{:?}", options);
-        let action = TodoActions::from_str(&options.name).unwrap();
-        match action {
-            TodoActions::List => Todo::list(&handler.db, interaction.channel_id.0),
-            _ => {
-                if !options.options.is_empty() {
-                    let content = &options.options.get(0).unwrap().resolved;
-                    println!("{:?} {:?}", action, content);
-                    match action {
-                        TodoActions::Add        => Todo::list(&handler.db, interaction.channel_id.0),
-                        TodoActions::Delete     => Todo::list(&handler.db, interaction.channel_id.0),
-                        TodoActions::Complete   => Todo::list(&handler.db, interaction.channel_id.0),
-                        TodoActions::List       => unreachable!(),
-                    }
+    fn list(&self, db: &Conn, channelid: ChannelId) -> TodoResult {
+        use crate::schema::todos::dsl::*;
+
+        let results = todos
+            .filter(channel_id.eq(channelid.0 as i64))
+            .filter(completion_date.is_null())
+            .load::<Todo>(&*db.lock().unwrap());
+
+        match results {
+            Ok(todo_list) => {
+                println!("{} todos", todo_list.len());
+                let output: String = todo_list
+                    .iter()
+                    .map(|t| format!("[ ] {:>3} | {}", t.id, t.todo))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+                if output.is_empty() {
+                    Ok(String::from(
+                        "There is no incompleted TODOs in that channel.",
+                    ))
                 } else {
-                    "Missing or incorrect argument".to_string()
+                    let top_line = "=== TODOs ===";
+                    Ok(format!("{}\n{}", top_line, output))
                 }
+            }
+            Err(NotFound) => {
+                println!("Not found");
+                Ok(String::from(""))
+            }
+            Err(_) => {
+                println!("Err");
+                Ok(String::from(""))
             }
         }
     }
-}
 
-impl fmt::Display for TodoActions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            TodoActions::List       => write!(f, "list"),
-            TodoActions::Add        => write!(f, "add"),
-            TodoActions::Delete     => write!(f, "delete"),
-            TodoActions::Complete   => write!(f, "complete"),
-        }
+    fn add(&self, db: &Conn, channelid: ChannelId, text: String) -> TodoResult {
+        use crate::schema::todos::dsl::*;
+
+        let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+        let new_todo = NewTodo {
+            channel_id: &(channelid.0 as i64),
+            todo: &text,
+            creation_date: &time.to_string(),
+        };
+
+        diesel::insert_into(todos)
+            .values(&new_todo)
+            .execute(&*db.lock().unwrap())
+            .expect("Error while adding to database.");
+
+        Ok(format!("TODO ``{}`` added", &text))
+    }
+
+    fn delete(&self, db: &Conn, channelid: ChannelId, todo_id: &i64) -> TodoResult {
+        use crate::schema::todos::dsl::*;
+
+        diesel::delete(todos.find(*todo_id as i32))
+            .execute(&*db.lock().unwrap())
+            .expect("Entry not found.");
+
+        Ok(String::from("TODO deleted."))
+    }
+
+    fn complete(&self, db: &Conn, channelid: ChannelId, todo_id: &i64) -> TodoResult {
+        use crate::schema::todos::dsl::*;
+
+        let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+
+        diesel::update(todos.find(*todo_id as i32))
+            .set(completion_date.eq(&time.to_string()))
+            .execute(&*db.lock().unwrap())
+            .expect("Entry not found.");
+
+        Ok(String::from("TODO completed"))
     }
 }
 
-impl FromStr for TodoActions {
+#[async_trait]
+impl Command for TodoCommand {
+    fn get_name(&self) -> &'static str {
+        TODO_COMMAND
+    }
 
-    type Err = ();
+    fn add_application_command(&self, command: &mut CreateApplicationCommand) {
+        command
+            .description(TODO_COMMAND_DESC)
+            .create_option(|option| {
+                option
+                    .name(TODO_SUBCOMMAND_LIST)
+                    .description("List TODO entries")
+                    .kind(ApplicationCommandOptionType::SubCommand)
+            })
+            .create_option(|option| {
+                option
+                    .name(TODO_SUBCOMMAND_ADD)
+                    .description("Add TODO entry")
+                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .create_sub_option(|subopt| {
+                        subopt
+                            .name("content")
+                            .description("TODO content")
+                            .kind(ApplicationCommandOptionType::String)
+                            .required(true)
+                    })
+            })
+            .create_option(|option| {
+                option
+                    .name(TODO_SUBCOMMAND_COMPLETE)
+                    .description("Complete TODO entry")
+                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .create_sub_option(|subopt| {
+                        subopt
+                            .name("id")
+                            .description("TODO id")
+                            .kind(ApplicationCommandOptionType::Integer)
+                            .required(true)
+                    })
+            })
+            .create_option(|option| {
+                option
+                    .name(TODO_SUBCOMMAND_DELETE)
+                    .description("Delete TODO entry")
+                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .create_sub_option(|subopt| {
+                        subopt
+                            .name("id")
+                            .description("TODO id")
+                            .kind(ApplicationCommandOptionType::Integer)
+                            .required(true)
+                    })
+            });
+    }
 
-    fn from_str(input: &str) -> Result<TodoActions, Self::Err> {
-        match input {
-            "list"      => Ok(TodoActions::List),
-            "add"       => Ok(TodoActions::Add),
-            "delete"    => Ok(TodoActions::Delete),
-            "complete"  => Ok(TodoActions::Complete),
-            _           => Err(()),
-        }
+    async fn handle(
+        &self,
+        ctx: &Context,
+        command: &ApplicationCommandInteraction,
+        secubot: &Secubot,
+    ) -> CommandResult {
+        let channel = command.channel_id;
+        let subcommand = command
+            .data
+            .options
+            .iter()
+            .find(|x| x.kind == ApplicationCommandOptionType::SubCommand)
+            .unwrap();
+        let subcommand_name = subcommand.name.as_str();
+        let args = &subcommand.options;
+
+        println!("{:?}", subcommand);
+
+        let result = match subcommand_name {
+            TODO_SUBCOMMAND_LIST => self.list(&secubot.db.clone(), channel),
+            TODO_SUBCOMMAND_ADD => {
+                if let OptString(content) = args
+                    .iter()
+                    .find(|x| x.name == "content")
+                    .expect("Expected content")
+                    .resolved
+                    .as_ref()
+                    .expect("Expected content")
+                {
+                    self.add(&secubot.db.clone(), channel, String::from(content))
+                } else {
+                    Err(String::from("Couldn't parse argument."))
+                }
+            }
+            name => {
+                if let OptInteger(id) = args
+                    .iter()
+                    .find(|x| x.name == "id")
+                    .expect("Expected id")
+                    .resolved
+                    .as_ref()
+                    .expect("Expected id")
+                {
+                    match name {
+                        TODO_SUBCOMMAND_DELETE => self.delete(&secubot.db.clone(), channel, id),
+                        TODO_SUBCOMMAND_COMPLETE => self.complete(&secubot.db.clone(), channel, id),
+                        &_ => {
+                            unreachable! {}
+                        }
+                    }
+                } else {
+                    Err(String::from("Couldn't parse argument."))
+                }
+            }
+        };
+
+        let response_text = match result {
+            Ok(content) => content,
+            Err(error) => {
+                format!("ERROR: {}", error)
+            }
+        };
+
+        command
+            .create_interaction_response(&ctx.http, |response| {
+                response
+                    .kind(InteractionResponseType::ChannelMessageWithSource)
+                    .interaction_response_data(|message| message.content(response_text))
+            })
+            .await?;
+
+        Ok(())
     }
 }
+
+
+

@@ -1,54 +1,50 @@
-use std::env;
+#[macro_use]
+extern crate diesel;
+
+use diesel::prelude::*;
+use diesel::sqlite::SqliteConnection;
+use dotenv::dotenv;
+use std::{
+    env,
+    sync::{Arc, Mutex},
+};
 
 use serenity::{
     async_trait,
     model::{
         gateway::Ready,
         id::GuildId,
-        interactions::{
-            application_command::{
-                ApplicationCommand,
-                ApplicationCommandOptionType,
-            },
-            Interaction,
-            InteractionResponseType,
-        },
+        interactions::{application_command::ApplicationCommand, Interaction},
     },
     prelude::*,
 };
-use dotenv::dotenv;
 
-use crate::commands::Command;
+use crate::commands::Commands;
+use crate::secubot::Secubot;
 
 mod commands;
+mod models;
+mod schema;
+mod secubot;
 
-use commands::TodoActions;
+struct Handler {
+    secubot: Secubot,
+    commands: Commands,
+}
 
-pub struct Handler {
-    db: sqlx::SqlitePool,
+impl Handler {
+    pub fn new(secubot: Secubot) -> Self {
+        Self {
+            secubot,
+            commands: Commands::new(),
+        }
+    }
 }
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::ApplicationCommand(command) = interaction {
-            let content = match command.data.name.as_str() {
-                "ping" => commands::Ping::execute(&self, &command),
-                "todo" => commands::Todo::execute(&self, &command),
-                _ => "Command not implemented :(".to_string(),
-            };
-
-            if let Err(why) = command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| message.content(content))
-                })
-            .await
-            {
-                println!("Cannot respond to slash command: {}", why);
-            }
-        }
+        self.commands.handle(ctx, interaction, &self.secubot).await;
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
@@ -56,71 +52,30 @@ impl EventHandler for Handler {
 
         let guild_id = GuildId(
             env::var("GUILD_ID")
-            .expect("Expected GUILD_ID in environment")
-            .parse()
-            .expect("GUILD_ID must be an integer"),
+                .expect("Expected GUILD_ID in environment")
+                .parse()
+                .expect("GUILD_ID must be an integer"),
         );
 
-        let commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
-            commands.create_application_command(|command| {
-                command
-                    .name("ping")
-                    .description("A ping command")
-            })
-            .create_application_command(|command| {
-                command
-                    .name("todo")
-                    .description("A todo")
-                    .create_option(|option| {
-                        option
-                            .name("list")
-                            .description("list todos")
-                            .kind(ApplicationCommandOptionType::SubCommand)
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("add")
-                            .description("add todo")
-                            .kind(ApplicationCommandOptionType::SubCommand)
-                            .create_sub_option(|subopt| {
-                                subopt
-                                    .name("content")
-                                    .description("todo content")
-                                    .kind(ApplicationCommandOptionType::String)
-                                    .required(true)
-                            })
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("delete")
-                            .description("delete todo")
-                            .kind(ApplicationCommandOptionType::SubCommand)
-                            .create_sub_option(|subopt| {
-                                subopt
-                                    .name("id")
-                                    .description("todo id")
-                                    .kind(ApplicationCommandOptionType::Integer)
-                                    .required(true)
-                            })
-                    })
-                    .create_option(|option| {
-                        option
-                            .name("complete")
-                            .description("complete todo")
-                            .kind(ApplicationCommandOptionType::SubCommand)
-                            .create_sub_option(|subopt| {
-                                subopt
-                                    .name("id")
-                                    .description("todo id")
-                                    .kind(ApplicationCommandOptionType::Integer)
-                                    .required(true)
-                            })
-                    })
-            })
+        let guild_commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
+            self.commands.register_commands(commands);
+            commands
         })
         .await;
 
-        println!("I now have the following guild slash commands: {:#?}", commands);
+        println!(
+            "I now have the following guild slash commands: {:#?}",
+            guild_commands
+        );
+
+        let global_commands =
+            ApplicationCommand::set_global_application_commands(&ctx.http, |commands| commands)
+                .await;
+
+        println!(
+            "I created the following global slash command: {:#?}",
+            global_commands
+        );
     }
 }
 
@@ -128,27 +83,26 @@ impl EventHandler for Handler {
 async fn main() {
     dotenv().ok();
 
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let token = env::var("DISCORD_TOKEN").expect("Expected a DISCORD_TOKEN in the environment");
 
     let application_id: u64 = env::var("APPLICATION_ID")
-        .expect("Expected an application id in the environment")
+        .expect("Expected an APPLICATION_ID in the environment")
         .parse()
-        .expect("application id is not a valid id");
+        .expect("APPLICATION_ID is not a valid id");
 
-    use std::str::FromStr;
-    let database = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect_with(sqlx::sqlite::SqliteConnectOptions::from_str(
-                &env::var("DATABASE_URL").expect("Expected a database url in the environment")
-        )
-            .expect("Incorrect database url")
-            .create_if_missing(true),
-        )
-        .await
-        .expect("Couldn't connect to database");
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database =
+        SqliteConnection::establish(&db_url).expect(&format!("Error connecting to {}", db_url));
 
-    let mut client = Client::builder(token)
-        .event_handler(Handler { db: database })
+    let conn = Arc::new(Mutex::new(database));
+    let secubot = Secubot::new(conn);
+    let handler = Handler::new(secubot);
+    let intents = GatewayIntents::non_privileged()
+        | GatewayIntents::GUILD_MEMBERS
+        | GatewayIntents::MESSAGE_CONTENT;
+
+    let mut client = Client::builder(token, intents)
+        .event_handler(handler)
         .application_id(application_id)
         .await
         .expect("Error creating client");

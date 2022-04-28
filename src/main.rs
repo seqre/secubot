@@ -50,26 +50,29 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
 
-        let guild_id = GuildId(
-            env::var("GUILD_ID")
-                .expect("Expected GUILD_ID in environment")
-                .parse()
-                .expect("GUILD_ID must be an integer"),
-        );
+        //let guild_id = GuildId(
+        //    env::var("GUILD_ID")
+        //        .expect("Expected GUILD_ID in environment")
+        //        .parse()
+        //        .expect("GUILD_ID must be an integer"),
+        //);
 
-        let guild_commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
-            self.commands.register_commands(commands);
-            commands
-        })
-        .await;
+        //let guild_commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
+        //    self.commands.register_commands(commands);
+        //    commands
+        //})
+        //.await;
 
-        println!(
-            "I now have the following guild slash commands: {:#?}",
-            guild_commands
-        );
+        //println!(
+        //    "I now have the following guild slash commands: {:#?}",
+        //    guild_commands
+        //);
 
         let global_commands =
-            ApplicationCommand::set_global_application_commands(&ctx.http, |commands| commands)
+            ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
+                self.commands.register_commands(commands);
+                commands
+            })
                 .await;
 
         println!(
@@ -97,9 +100,9 @@ async fn main() {
     let conn = Arc::new(Mutex::new(database));
     let secubot = Secubot::new(conn);
     let handler = Handler::new(secubot);
-    let intents = GatewayIntents::non_privileged()
-        | GatewayIntents::GUILD_MEMBERS
-        | GatewayIntents::MESSAGE_CONTENT;
+    let intents = GatewayIntents::non_privileged();
+        //| GatewayIntents::GUILD_MEMBERS
+        //| GatewayIntents::MESSAGE_CONTENT;
 
     let mut client = Client::builder(token, intents)
         .event_handler(handler)

@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate diesel;
 
+#[macro_use]
+extern crate diesel_migrations;
+
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use dotenv::dotenv;
@@ -26,6 +29,8 @@ mod commands;
 mod models;
 mod schema;
 mod secubot;
+
+embed_migrations!();
 
 struct Handler {
     secubot: Secubot,
@@ -96,6 +101,8 @@ async fn main() {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let database =
         SqliteConnection::establish(&db_url).expect(&format!("Error connecting to {}", db_url));
+
+    embedded_migrations::run(&database);
 
     let conn = Arc::new(Mutex::new(database));
     let secubot = Secubot::new(conn);

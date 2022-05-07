@@ -5,10 +5,12 @@ edition = "2021"
 
 [dependencies]
 async-trait = { version = "0.1.52" }
-serenity = { version = "0.11.1", default-features = false, features = ["client", "gateway", "model", "rustls_backend", "unstable_discord_api"] }
+serenity = { version = "0.11.1", default-features = false, features = ["client", "cache", "gateway", "http", "model", "rustls_backend", "unstable_discord_api"] }
 tokio = { version = "1.15.0",	features = ["full"] }
 dotenv = { version = "0.15.0" }
 diesel = { version = "1.4.8", features = ["sqlite", "chrono"] }
 diesel_migrations = { version = "1.4.0" }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0.136" }
+regex = { version = "1.5.5" }
+lazy_static = { version = "1.4.0" }

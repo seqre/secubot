@@ -8,8 +8,12 @@ use serenity::{
 };
 use std::error::Error;
 
-use crate::{commands::todo::TodoCommand, Secubot};
+use crate::{
+    commands::{ping::PingCommand, todo::TodoCommand},
+    Secubot,
+};
 
+mod ping;
 mod todo;
 
 pub type CommandResult = Result<(), Box<dyn Error>>;
@@ -38,7 +42,7 @@ impl Commands {
     }
 
     fn get_commands() -> Vec<Box<dyn Command>> {
-        vec![Box::new(TodoCommand::new())]
+        vec![Box::new(TodoCommand::new()), Box::new(PingCommand::new())]
     }
 
     pub fn register_commands(&self, commands: &mut CreateApplicationCommands) {

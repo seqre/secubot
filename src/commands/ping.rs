@@ -23,12 +23,13 @@ use tokio::{
         Mutex,
     },
     task::JoinHandle,
-    time::{sleep, Duration},
+    time::sleep,
 };
 
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -44,8 +45,25 @@ const PING_SUBCOMMAND_STOP: &'static str = "stop";
 
 const PING_CHANNEL_BUFFER: usize = 15;
 
+const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
+
+struct PingTask {
+    pub end_date: Instant,
+    pub users: HashSet<UserId>,
+}
+
+impl PingTask {
+    pub fn new(end_date: Instant, users: HashSet<UserId>) -> Self {
+        Self { end_date, users }
+    }
+
+    pub fn is_done(&self) -> bool {
+        Instant::now() > self.end_date
+    }
+}
+
 struct PingWorker {
-    pings: HashMap<ChannelId, Mutex<HashSet<UserId>>>,
+    pings: HashMap<ChannelId, Mutex<PingTask>>,
     channel: Receiver<PingWorkerMessage>,
     http: Option<Arc<Http>>,
 }
@@ -60,11 +78,36 @@ impl PingWorker {
     }
 
     pub async fn work(&mut self) {
+        let mut queue: Vec<ChannelId> = Vec::new();
         loop {
-            for (channel, users) in self.pings.iter() {
-                if let Ok(users) = users.try_lock() {
+            self.pings.retain(|channel, ping_task| {
+                let mut leave = true;
+                if let Ok(ping_task) = ping_task.try_lock() {
+                    if ping_task.is_done() {
+                        leave = false;
+                        queue.push(channel.clone());
+                    }
+                }
+                leave
+            });
+
+            if let Some(http) = &self.http {
+                for channel in queue.iter() {
+                    channel
+                        .say(http, "The Ping Cannon shot enough shots.")
+                        .await;
+                }
+                queue.clear();
+            }
+
+            for (channel, ping_task) in self.pings.iter() {
+                if let Ok(ping_task) = ping_task.try_lock() {
                     if let Some(http) = &self.http {
-                        let usrs: String = users.iter().map(|u| format!("<@!{}>", u)).collect();
+                        let usrs: String = ping_task
+                            .users
+                            .iter()
+                            .map(|u| format!("<@!{}>", u))
+                            .collect();
                         channel.say(http, format!("./ping {}", usrs)).await;
                     }
                 }
@@ -88,16 +131,21 @@ impl PingWorker {
                 Commence(http, channel_id, users) => {
                     self.http = Some(http);
 
-                    if let Some(usrs) = self.pings.get_mut(&channel_id) {
-                        let mut usrs = usrs.lock().await;
+                    if let Some(ping_task) = self.pings.get_mut(&channel_id) {
+                        let mut ping_task = ping_task.lock().await;
+                        let usrs = &mut ping_task.users;
                         usrs.extend(users);
                     } else {
-                        self.pings.insert(channel_id, Mutex::new(users));
+                        self.pings.insert(
+                            channel_id,
+                            Mutex::new(PingTask::new(Instant::now() + PING_TIMEOUT, users)),
+                        );
                     }
                 }
                 Remove(channel_id, users) => {
-                    if let Some(usrs) = self.pings.get_mut(&channel_id) {
-                        let mut usrs = usrs.lock().await;
+                    if let Some(ping_task) = self.pings.get_mut(&channel_id) {
+                        let mut ping_task = ping_task.lock().await;
+                        let usrs = &mut ping_task.users;
                         for usr in users {
                             usrs.remove(&usr);
                         }

@@ -3,17 +3,12 @@ use serenity::{
     builder::{CreateApplicationCommand, CreateApplicationCommands},
     client::Context,
     model::interactions::{
-        application_command::ApplicationCommandInteraction,
-        Interaction,
-        InteractionResponseType,
+        application_command::ApplicationCommandInteraction, Interaction, InteractionResponseType,
     },
 };
 use std::error::Error;
 
-use crate::{
-    commands::todo::TodoCommand,
-    Secubot,
-};
+use crate::{commands::todo::TodoCommand, Secubot};
 
 mod todo;
 
@@ -43,9 +38,7 @@ impl Commands {
     }
 
     fn get_commands() -> Vec<Box<dyn Command>> {
-        vec![
-            Box::new(TodoCommand::new()),
-        ]
+        vec![Box::new(TodoCommand::new())]
     }
 
     pub fn register_commands(&self, commands: &mut CreateApplicationCommands) {
@@ -66,16 +59,14 @@ impl Commands {
                 .find(|command| command.get_name() == requested_command_name);
 
             if let Some(bot_command) = bot_command_option {
-                //let channel_id = command.channel_id;
-                //let http = ctx.http.clone();
-
                 let error_message =
                     if let Err(e) = bot_command.handle(&ctx, &command, secubot).await {
                         println!("Could not respond: {:?}", e);
                         format!("Could not generate response:\n```\n{}\n```", e)
                     } else {
-                        "".to_owned()
+                        String::from("")
                     };
+
                 if !error_message.is_empty() {
                     // Try to create message (if not exists) and then edit it (if existed already)
                     command

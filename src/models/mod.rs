@@ -10,7 +10,7 @@ pub struct Todo {
 }
 
 #[derive(Insertable)]
-#[table_name="todos"]
+#[table_name = "todos"]
 pub struct NewTodo<'a> {
     pub channel_id: &'a i64,
     pub todo: &'a str,

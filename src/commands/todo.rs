@@ -74,12 +74,8 @@ impl TodoCommand {
                     Ok(TodoReturn::Fields(output))
                 }
             }
-            Err(NotFound) => {
-                Ok(TodoReturn::Text(String::from("Not found.")))
-            }
-            Err(_) => {
-                Ok(TodoReturn::Text(String::from("Err.")))
-            }
+            Err(NotFound) => Ok(TodoReturn::Text(String::from("Not found."))),
+            Err(_) => Ok(TodoReturn::Text(String::from("Err."))),
         }
     }
 
@@ -87,7 +83,9 @@ impl TodoCommand {
         use crate::schema::todos::dsl::*;
 
         if text.len() > 1024 {
-            Err(String::from("Content can't have more than 1024 characters."))
+            Err(String::from(
+                "Content can't have more than 1024 characters.",
+            ))
         } else {
             let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
             let new_todo = NewTodo {
@@ -112,7 +110,10 @@ impl TodoCommand {
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(format!("TODO (id: `{}`) deleted.", &todo_id)))
+        Ok(TodoReturn::Text(format!(
+            "TODO (id: `{}`) deleted.",
+            &todo_id
+        )))
     }
 
     fn complete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
@@ -125,7 +126,10 @@ impl TodoCommand {
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(format!("TODO (id: `{}`) completed.", &todo_id)))
+        Ok(TodoReturn::Text(format!(
+            "TODO (id: `{}`) completed.",
+            &todo_id
+        )))
     }
     fn uncomplete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
@@ -135,7 +139,10 @@ impl TodoCommand {
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(format!("TODO (id: `{}`) uncompleted.", &todo_id)))
+        Ok(TodoReturn::Text(format!(
+            "TODO (id: `{}`) uncompleted.",
+            &todo_id
+        )))
     }
 }
 
@@ -254,7 +261,9 @@ impl Command for TodoCommand {
                     match name {
                         TODO_SUBCOMMAND_DELETE => self.delete(&secubot.db.clone(), channel, id),
                         TODO_SUBCOMMAND_COMPLETE => self.complete(&secubot.db.clone(), channel, id),
-                        TODO_SUBCOMMAND_UNCOMPLETE => self.uncomplete(&secubot.db.clone(), channel, id),
+                        TODO_SUBCOMMAND_UNCOMPLETE => {
+                            self.uncomplete(&secubot.db.clone(), channel, id)
+                        }
                         &_ => {
                             unreachable! {}
                         }
@@ -299,6 +308,3 @@ impl Command for TodoCommand {
         Ok(())
     }
 }
-
-
-

@@ -1,7 +1,5 @@
 use diesel::sqlite::SqliteConnection;
-use std::{
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 pub type Conn = Arc<Mutex<SqliteConnection>>;
 

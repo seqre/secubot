@@ -74,12 +74,10 @@ impl TodoCommand {
                 }
             }
             Err(NotFound) => {
-                println!("Not found");
-                Ok(TodoReturn::Text(String::from("")))
+                Ok(TodoReturn::Text(String::from("Not found.")))
             }
             Err(_) => {
-                println!("Err");
-                Ok(TodoReturn::Text(String::from("")))
+                Ok(TodoReturn::Text(String::from("Err.")))
             }
         }
     }
@@ -88,7 +86,7 @@ impl TodoCommand {
         use crate::schema::todos::dsl::*;
 
         if text.len() > 1024 {
-            Err(String::from("Content can't have more than 1024 characters"))
+            Err(String::from("Content can't have more than 1024 characters."))
         } else {
             let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
             let new_todo = NewTodo {
@@ -102,7 +100,7 @@ impl TodoCommand {
                 .execute(&*db.lock().unwrap())
                 .expect("Error while adding to database.");
 
-            Ok(TodoReturn::Text(format!("TODO ``{}`` added", &text)))
+            Ok(TodoReturn::Text(format!("TODO ``{}`` added.", &text)))
         }
     }
 
@@ -113,7 +111,7 @@ impl TodoCommand {
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(String::from("TODO deleted.")))
+        Ok(TodoReturn::Text(format!("TODO (id: `{}`) deleted.", &todo_id)))
     }
 
     fn complete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
@@ -126,7 +124,7 @@ impl TodoCommand {
             .execute(&*db.lock().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(String::from("TODO completed")))
+        Ok(TodoReturn::Text(format!("TODO (id: `{}`) completed.", &todo_id)))
     }
 }
 

@@ -33,6 +33,7 @@ const TODO_SUBCOMMAND_LIST: &'static str = "list";
 const TODO_SUBCOMMAND_ADD: &'static str = "add";
 const TODO_SUBCOMMAND_DELETE: &'static str = "delete";
 const TODO_SUBCOMMAND_COMPLETE: &'static str = "complete";
+const TODO_SUBCOMMAND_UNCOMPLETE: &'static str = "uncomplete";
 
 type TodoEntry = (u64, String);
 
@@ -126,6 +127,16 @@ impl TodoCommand {
 
         Ok(TodoReturn::Text(format!("TODO (id: `{}`) completed.", &todo_id)))
     }
+    fn uncomplete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
+        use crate::schema::todos::dsl::*;
+
+        diesel::update(todos.find(*todo_id as i32))
+            .set(completion_date.eq::<Option<String>>(None))
+            .execute(&*db.lock().unwrap())
+            .expect("Entry not found.");
+
+        Ok(TodoReturn::Text(format!("TODO (id: `{}`) uncompleted.", &todo_id)))
+    }
 }
 
 #[async_trait]
@@ -160,6 +171,19 @@ impl Command for TodoCommand {
                 option
                     .name(TODO_SUBCOMMAND_COMPLETE)
                     .description("Complete TODO entry")
+                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .create_sub_option(|subopt| {
+                        subopt
+                            .name("id")
+                            .description("TODO id")
+                            .kind(ApplicationCommandOptionType::Integer)
+                            .required(true)
+                    })
+            })
+            .create_option(|option| {
+                option
+                    .name(TODO_SUBCOMMAND_UNCOMPLETE)
+                    .description("Uncomplete TODO entry")
                     .kind(ApplicationCommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
@@ -230,6 +254,7 @@ impl Command for TodoCommand {
                     match name {
                         TODO_SUBCOMMAND_DELETE => self.delete(&secubot.db.clone(), channel, id),
                         TODO_SUBCOMMAND_COMPLETE => self.complete(&secubot.db.clone(), channel, id),
+                        TODO_SUBCOMMAND_UNCOMPLETE => self.uncomplete(&secubot.db.clone(), channel, id),
                         &_ => {
                             unreachable! {}
                         }

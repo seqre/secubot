@@ -291,18 +291,22 @@ impl Command for PingCommand {
                     .expect("Expected users")
                 {
                     let users = PingCommand::input_to_users(users);
-                    match name {
-                        PING_SUBCOMMAND_COMMENCE => {
-                            let http = ctx.http.clone();
-                            self.commence(http, channel, users).await;
-                            "LOADING PING CANNON...."
-                        }
-                        PING_SUBCOMMAND_REMOVE => {
-                            self.remove(&channel, users).await;
-                            "Users removed from the targets."
-                        }
-                        &_ => {
-                            unreachable! {}
+                    if users.len() == 0 {
+                        "No valid users found, aborting."
+                    } else {
+                        match name {
+                            PING_SUBCOMMAND_COMMENCE => {
+                                let http = ctx.http.clone();
+                                self.commence(http, channel, users).await;
+                                "LOADING PING CANNON...."
+                            }
+                            PING_SUBCOMMAND_REMOVE => {
+                                self.remove(&channel, users).await;
+                                "Users removed from the targets."
+                            }
+                            &_ => {
+                                unreachable! {}
+                            }
                         }
                     }
                 } else {

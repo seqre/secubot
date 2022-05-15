@@ -35,14 +35,17 @@ pub struct Commands {
 }
 
 impl Commands {
-    pub fn new() -> Self {
+    pub fn new(secubot: &Secubot) -> Self {
         Self {
-            commands: Self::get_commands(),
+            commands: Self::get_commands(secubot),
         }
     }
 
-    fn get_commands() -> Vec<Box<dyn Command>> {
-        vec![Box::new(TodoCommand::new()), Box::new(PingCommand::new())]
+    fn get_commands(secubot: &Secubot) -> Vec<Box<dyn Command>> {
+        vec![
+            Box::new(TodoCommand::new(secubot)),
+            Box::new(PingCommand::new()),
+        ]
     }
 
     pub fn register_commands(&self, commands: &mut CreateApplicationCommands) {

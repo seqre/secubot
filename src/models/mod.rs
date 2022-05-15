@@ -13,6 +13,7 @@ pub struct Todo {
 #[table_name = "todos"]
 pub struct NewTodo<'a> {
     pub channel_id: &'a i64,
+    pub id: &'a i32,
     pub todo: &'a str,
     pub creation_date: &'a str,
 }

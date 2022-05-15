@@ -39,10 +39,8 @@ struct Handler {
 
 impl Handler {
     pub fn new(secubot: Secubot) -> Self {
-        Self {
-            secubot,
-            commands: Commands::new(),
-        }
+        let commands = Commands::new(&secubot);
+        Self { secubot, commands }
     }
 }
 

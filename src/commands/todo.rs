@@ -19,6 +19,12 @@ use serenity::{
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::result::Error::NotFound;
+use itertools::Itertools;
+
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicI32, Ordering},
+};
 
 use crate::{
     commands::{Command, CommandResult},
@@ -44,11 +50,38 @@ enum TodoReturn {
 
 type TodoResult = Result<TodoReturn, String>;
 
-pub struct TodoCommand;
+pub struct TodoCommand {
+    iterators: Mutex<HashMap<ChannelId, AtomicI32>>,
+}
 
 impl TodoCommand {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(secubot: &Secubot) -> Self {
+        use crate::schema::todos::dsl::*;
+
+        let db = secubot.db.clone();
+        let todo_list = todos.load::<Todo>(&*db.lock().unwrap()).unwrap();
+        let iterators = todo_list
+            .into_iter()
+            .group_by(|td| td.channel_id)
+            .into_iter()
+            .map(|(chnl, tds)| {
+                let biggest_id = match tds.map(|t| t.id).max() {
+                    Some(b_id) => b_id,
+                    None => 0,
+                };
+                (ChannelId(chnl as u64), AtomicI32::new(biggest_id))
+            })
+            .collect::<HashMap<_, _>>();
+
+        Self {
+            iterators: Mutex::new(iterators),
+        }
+    }
+
+    fn get_id(&self, channelid: ChannelId) -> i32 {
+        let mut itr = self.iterators.lock().unwrap();
+        let aint = itr.entry(channelid).or_insert_with(|| AtomicI32::new(0));
+        aint.fetch_add(1, Ordering::SeqCst)
     }
 
     fn list(&self, db: &Conn, channelid: ChannelId) -> TodoResult {
@@ -61,7 +94,6 @@ impl TodoCommand {
 
         match results {
             Ok(todo_list) => {
-                println!("{} todos", todo_list.len());
                 let output: Vec<TodoEntry> = todo_list
                     .into_iter()
                     .map(|t| (t.id as u64, t.todo))
@@ -88,8 +120,10 @@ impl TodoCommand {
             ))
         } else {
             let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+            let new_id = self.get_id(channelid);
             let new_todo = NewTodo {
                 channel_id: &(channelid.0 as i64),
+                id: &new_id,
                 todo: &text,
                 creation_date: &time.to_string(),
             };

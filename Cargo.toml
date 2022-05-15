@@ -14,3 +14,4 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0.136" }
 regex = { version = "1.5.5" }
 lazy_static = { version = "1.4.0" }
+itertools = { version = "0.8.0" }

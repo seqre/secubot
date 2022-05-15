@@ -264,7 +264,7 @@ impl Command for PingCommand {
         &self,
         ctx: &Context,
         command: &ApplicationCommandInteraction,
-        secubot: &Secubot,
+        _secubot: &Secubot,
     ) -> CommandResult {
         let channel = command.channel_id;
         let subcommand = command

@@ -106,8 +106,6 @@ async fn main() {
     let secubot = Secubot::new(conn);
     let handler = Handler::new(secubot);
     let intents = GatewayIntents::non_privileged();
-        //| GatewayIntents::GUILD_MEMBERS
-        //| GatewayIntents::MESSAGE_CONTENT;
 
     let mut client = Client::builder(token, intents)
         .event_handler(handler)

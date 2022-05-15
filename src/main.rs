@@ -6,7 +6,6 @@ extern crate diesel_migrations;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use dotenv::dotenv;
 use std::{
     env,
     sync::{Arc, Mutex},
@@ -24,11 +23,13 @@ use serenity::{
 
 use crate::commands::Commands;
 use crate::secubot::Secubot;
+use crate::settings::Settings;
 
 mod commands;
 mod models;
 mod schema;
 mod secubot;
+mod settings;
 
 embed_migrations!();
 
@@ -87,18 +88,11 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    let settings = Settings::new().unwrap();
+    println!("{:#?}", settings);
 
-    let token = env::var("DISCORD_TOKEN").expect("Expected a DISCORD_TOKEN in the environment");
-
-    let application_id: u64 = env::var("APPLICATION_ID")
-        .expect("Expected an APPLICATION_ID in the environment")
-        .parse()
-        .expect("APPLICATION_ID is not a valid id");
-
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let database =
-        SqliteConnection::establish(&db_url).expect(&format!("Error connecting to {}", db_url));
+    let database = SqliteConnection::establish(&settings.database.url)
+        .expect(&format!("Error connecting to {}", settings.database.url));
 
     embedded_migrations::run(&database);
 
@@ -107,9 +101,9 @@ async fn main() {
     let handler = Handler::new(secubot);
     let intents = GatewayIntents::non_privileged();
 
-    let mut client = Client::builder(token, intents)
+    let mut client = Client::builder(settings.discord_token, intents)
         .event_handler(handler)
-        .application_id(application_id)
+        .application_id(settings.application_id)
         .await
         .expect("Error creating client");
 

@@ -1,7 +1,14 @@
 [package]
 name = "secubot"
-version = "0.4.0"
+version = "1.0.0"
 edition = "2021"
+authors = ["Marek 'seqre' Grzelak <marek.grzelak@seqre.dev>"]
+description = "Yet another Discord bot!"
+readme = "README.md"
+repository = "https://github.com/seqre/secubot"
+license = "MIT"
+keywords = ["discord", "bot", "todo", "ping"]
+publish = false
 
 [dependencies]
 async-trait = { version = "0.1" }

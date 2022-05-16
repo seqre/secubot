@@ -1,0 +1,7 @@
+commands:
+  globals:
+    - "todo"
+  guilds:
+    - id: 111111111111111111
+      commands:
+        - "ping"

@@ -26,7 +26,6 @@ pub struct Commands {
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
 pub struct Settings {
-    pub debug: bool,
     pub log_level: String,
     pub discord_token: String,
     pub application_id: u64,

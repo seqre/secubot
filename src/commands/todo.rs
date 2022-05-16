@@ -265,8 +265,6 @@ impl Command for TodoCommand {
         let subcommand_name = subcommand.name.as_str();
         let args = &subcommand.options;
 
-        println!("{:?}", subcommand);
-
         let result = match subcommand_name {
             TODO_SUBCOMMAND_LIST => self.list(&secubot.db.clone(), channel),
             TODO_SUBCOMMAND_ADD => {

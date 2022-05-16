@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use lazy_static::lazy_static;
+use log::debug;
 use regex::Regex;
 use serenity::{
     builder::CreateApplicationCommand,
@@ -77,6 +78,7 @@ impl PingWorker {
         }
     }
 
+    #[allow(unused_must_use)]
     pub async fn work(&mut self) {
         let mut queue: Vec<ChannelId> = Vec::new();
         loop {
@@ -185,21 +187,36 @@ impl PingCommand {
     }
 
     async fn commence(&self, http: Arc<Http>, channel_id: ChannelId, users: HashSet<UserId>) {
-        self.channel
+        match self
+            .channel
             .send(PingWorkerMessage::Commence(http.clone(), channel_id, users))
-            .await;
+            .await
+        {
+            Err(e) => debug!("Error while sending Commence message: {:?}", e),
+            _ => (),
+        };
     }
 
     async fn remove(&self, channel_id: &ChannelId, users: HashSet<UserId>) {
-        self.channel
+        match self
+            .channel
             .send(PingWorkerMessage::Remove(*channel_id, users))
-            .await;
+            .await
+        {
+            Err(e) => debug!("Error while sending Commence message: {:?}", e),
+            _ => (),
+        };
     }
 
     async fn stop(&self, channel_id: &ChannelId) {
-        self.channel
+        match self
+            .channel
             .send(PingWorkerMessage::Stop(*channel_id))
-            .await;
+            .await
+        {
+            Err(e) => debug!("Error while sending Commence message: {:?}", e),
+            _ => (),
+        };
     }
 
     fn input_to_users(input: &String) -> HashSet<UserId> {

@@ -1,3 +1,4 @@
 debug: False
 database:
   url: db.sqlite
+log_level: Trace

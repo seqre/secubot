@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use log::{debug, warn};
 use serenity::{
     builder::{CreateApplicationCommand, CreateApplicationCommands},
     client::Context,
@@ -71,7 +72,7 @@ impl Commands {
             if let Some(bot_command) = &self.commands.get(requested_comm) {
                 let error_message =
                     if let Err(e) = bot_command.handle(&ctx, &command, secubot).await {
-                        println!("Could not respond: {:?}", e);
+                        warn!("Could not respond: {:?}", e);
                         format!("Could not generate response:\n```\n{}\n```", e)
                     } else {
                         String::from("")
@@ -79,20 +80,29 @@ impl Commands {
 
                 if !error_message.is_empty() {
                     // Try to create message (if not exists) and then edit it (if existed already)
-                    command
+                    warn!("Error while handling command: {:?}", error_message);
+                    match command
                         .create_interaction_response(&ctx.http, |response| {
                             response.kind(InteractionResponseType::ChannelMessageWithSource)
                         })
-                        .await;
+                        .await
+                    {
+                        Err(e) => debug!("Error while creating response: {:?}", e),
+                        _ => (),
+                    };
 
-                    command
+                    match command
                         .edit_original_interaction_response(&ctx.http, |response| {
                             response.content(error_message)
                         })
-                        .await;
+                        .await
+                    {
+                        Err(e) => debug!("Error while editing response: {:?}", e),
+                        _ => (),
+                    };
                 }
             } else {
-                println!("Invalid command received");
+                debug!("Invalid command received");
             }
         }
     }

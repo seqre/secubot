@@ -6,7 +6,12 @@ extern crate diesel_migrations;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use std::sync::{Arc, Mutex};
+use env_logger;
+use log::{error, info, warn, LevelFilter};
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 use serenity::{
     async_trait,
@@ -54,9 +59,9 @@ impl EventHandler for Handler {
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
+        info!("{} is connected!", ready.user.name);
 
-        println!("Setting up guild slash commands:");
+        info!("Guild slash commands:");
         for guild in &self.settings.commands.guilds {
             let guild_commands =
                 GuildId::set_application_commands(&GuildId(guild.id), &ctx.http, |commands| {
@@ -65,7 +70,7 @@ impl EventHandler for Handler {
                 })
                 .await;
 
-            println!(
+            info!(
                 " - Guild ({}) commands: {:?}",
                 guild.id,
                 guild_commands
@@ -84,8 +89,8 @@ impl EventHandler for Handler {
             })
             .await;
 
-        println!(
-            "Setting up global slash commands: {:?}",
+        info!(
+            "Global slash commands: {:?}",
             global_commands
                 .unwrap()
                 .iter()
@@ -98,12 +103,29 @@ impl EventHandler for Handler {
 #[tokio::main]
 async fn main() {
     let settings = Settings::new().unwrap();
-    println!("{:#?}", settings);
+
+    if let Ok(level) = LevelFilter::from_str(&settings.log_level) {
+        env_logger::Builder::new()
+            .filter_module("secubot", level)
+            .init();
+    } else {
+        env_logger::Builder::new()
+            .filter_module("secubot", LevelFilter::Debug)
+            .init();
+        warn!("Incorrect log_level in config, using Debug");
+    }
+
+    let mut clean_settings = settings.clone();
+    clean_settings.discord_token = String::from("REDACTED");
+    info!("Parsed configuration: {:?}", clean_settings);
 
     let database = SqliteConnection::establish(&settings.database.url)
         .expect(&format!("Error connecting to {}", &settings.database.url));
 
-    embedded_migrations::run(&database);
+    match embedded_migrations::run(&database) {
+        Ok(_) => info!("Database migrations completed"),
+        Err(e) => error!("Database migrations error: {:?}", e),
+    };
 
     let token = String::from(&settings.discord_token);
     let application_id = settings.application_id;
@@ -120,6 +142,6 @@ async fn main() {
         .expect("Error creating client");
 
     if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
+        error!("Client error: {:?}", why);
     }
 }

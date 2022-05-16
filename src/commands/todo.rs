@@ -69,7 +69,7 @@ impl TodoCommand {
                     Some(b_id) => b_id,
                     None => 0,
                 };
-                (ChannelId(chnl as u64), AtomicI32::new(biggest_id))
+                (ChannelId(chnl as u64), AtomicI32::new(biggest_id + 1))
             })
             .collect::<HashMap<_, _>>();
 

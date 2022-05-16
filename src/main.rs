@@ -6,10 +6,7 @@ extern crate diesel_migrations;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use std::{
-    env,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use serenity::{
     async_trait,
@@ -36,12 +33,17 @@ embed_migrations!();
 struct Handler {
     secubot: Secubot,
     commands: Commands,
+    settings: Settings,
 }
 
 impl Handler {
-    pub fn new(secubot: Secubot) -> Self {
+    pub fn new(secubot: Secubot, settings: Settings) -> Self {
         let commands = Commands::new(&secubot);
-        Self { secubot, commands }
+        Self {
+            secubot,
+            commands,
+            settings,
+        }
     }
 }
 
@@ -54,34 +56,41 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
 
-        //let guild_id = GuildId(
-        //    env::var("GUILD_ID")
-        //        .expect("Expected GUILD_ID in environment")
-        //        .parse()
-        //        .expect("GUILD_ID must be an integer"),
-        //);
+        println!("Setting up guild slash commands:");
+        for guild in &self.settings.commands.guilds {
+            let guild_commands =
+                GuildId::set_application_commands(&GuildId(guild.id), &ctx.http, |commands| {
+                    self.commands.register_commands(commands, &guild.commands);
+                    commands
+                })
+                .await;
 
-        //let guild_commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
-        //    self.commands.register_commands(commands);
-        //    commands
-        //})
-        //.await;
-
-        //println!(
-        //    "I now have the following guild slash commands: {:#?}",
-        //    guild_commands
-        //);
+            println!(
+                " - Guild ({}) commands: {:?}",
+                guild.id,
+                guild_commands
+                    .unwrap()
+                    .iter()
+                    .map(|c| String::from(&c.name))
+                    .collect::<Vec<String>>()
+            );
+        }
 
         let global_commands =
             ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
-                self.commands.register_commands(commands);
+                self.commands
+                    .register_commands(commands, &self.settings.commands.globals);
                 commands
             })
-                .await;
+            .await;
 
         println!(
-            "I created the following global slash command: {:#?}",
+            "Setting up global slash commands: {:?}",
             global_commands
+                .unwrap()
+                .iter()
+                .map(|c| String::from(&c.name))
+                .collect::<Vec<String>>()
         );
     }
 }
@@ -92,18 +101,21 @@ async fn main() {
     println!("{:#?}", settings);
 
     let database = SqliteConnection::establish(&settings.database.url)
-        .expect(&format!("Error connecting to {}", settings.database.url));
+        .expect(&format!("Error connecting to {}", &settings.database.url));
 
     embedded_migrations::run(&database);
 
+    let token = String::from(&settings.discord_token);
+    let application_id = settings.application_id;
+
     let conn = Arc::new(Mutex::new(database));
     let secubot = Secubot::new(conn);
-    let handler = Handler::new(secubot);
+    let handler = Handler::new(secubot, settings);
     let intents = GatewayIntents::non_privileged();
 
-    let mut client = Client::builder(settings.discord_token, intents)
+    let mut client = Client::builder(token, intents)
         .event_handler(handler)
-        .application_id(settings.application_id)
+        .application_id(application_id)
         .await
         .expect("Error creating client");
 

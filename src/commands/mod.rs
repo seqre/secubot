@@ -6,7 +6,7 @@ use serenity::{
         application_command::ApplicationCommandInteraction, Interaction, InteractionResponseType,
     },
 };
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use crate::{
     commands::{ping::PingCommand, todo::TodoCommand},
@@ -31,7 +31,7 @@ pub trait Command: Send + Sync {
 }
 
 pub struct Commands {
-    commands: Vec<Box<dyn Command>>,
+    commands: HashMap<String, Box<dyn Command>>,
 }
 
 impl Commands {
@@ -41,31 +41,34 @@ impl Commands {
         }
     }
 
-    fn get_commands(secubot: &Secubot) -> Vec<Box<dyn Command>> {
-        vec![
+    fn get_commands(secubot: &Secubot) -> HashMap<String, Box<dyn Command>> {
+        let commands: Vec<Box<dyn Command>> = vec![
             Box::new(TodoCommand::new(secubot)),
             Box::new(PingCommand::new()),
-        ]
+        ];
+
+        commands
+            .into_iter()
+            .map(|c| (c.get_name().into(), c))
+            .collect()
     }
 
-    pub fn register_commands(&self, commands: &mut CreateApplicationCommands) {
-        for command in &self.commands {
-            commands.create_application_command(|com| {
-                command.add_application_command(com);
-                com.name(command.get_name())
-            });
+    pub fn register_commands(&self, creator: &mut CreateApplicationCommands, names: &Vec<String>) {
+        for comm_name in names {
+            if let Some(comm) = &self.commands.get(comm_name) {
+                creator.create_application_command(|com| {
+                    comm.add_application_command(com);
+                    com.name(comm.get_name())
+                });
+            }
         }
     }
 
     pub async fn handle(&self, ctx: Context, interaction: Interaction, secubot: &Secubot) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            let requested_command_name = command.data.name.as_str();
-            let bot_command_option = self
-                .commands
-                .iter()
-                .find(|command| command.get_name() == requested_command_name);
+            let requested_comm = command.data.name.as_str();
 
-            if let Some(bot_command) = bot_command_option {
+            if let Some(bot_command) = &self.commands.get(requested_comm) {
                 let error_message =
                     if let Err(e) = bot_command.handle(&ctx, &command, secubot).await {
                         println!("Could not respond: {:?}", e);

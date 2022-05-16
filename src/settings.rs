@@ -11,11 +11,26 @@ pub struct Database {
 
 #[derive(Debug, Deserialize)]
 #[allow(unused)]
+pub struct Guild {
+    pub id: u64,
+    pub commands: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(unused)]
+pub struct Commands {
+    pub globals: Vec<String>,
+    pub guilds: Vec<Guild>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(unused)]
 pub struct Settings {
     pub debug: bool,
     pub discord_token: String,
     pub application_id: u64,
     pub database: Database,
+    pub commands: Commands,
 }
 
 impl Settings {

@@ -33,13 +33,13 @@ use crate::{
     *,
 };
 
-const TODO_COMMAND: &'static str = "todo";
-const TODO_COMMAND_DESC: &'static str = "Todo";
-const TODO_SUBCOMMAND_LIST: &'static str = "list";
-const TODO_SUBCOMMAND_ADD: &'static str = "add";
-const TODO_SUBCOMMAND_DELETE: &'static str = "delete";
-const TODO_SUBCOMMAND_COMPLETE: &'static str = "complete";
-const TODO_SUBCOMMAND_UNCOMPLETE: &'static str = "uncomplete";
+const TODO_COMMAND: &str = "todo";
+const TODO_COMMAND_DESC: &str = "Todo";
+const TODO_SUBCOMMAND_LIST: &str = "list";
+const TODO_SUBCOMMAND_ADD: &str = "add";
+const TODO_SUBCOMMAND_DELETE: &str = "delete";
+const TODO_SUBCOMMAND_COMPLETE: &str = "complete";
+const TODO_SUBCOMMAND_UNCOMPLETE: &str = "uncomplete";
 
 type TodoEntry = (u64, String);
 
@@ -65,10 +65,7 @@ impl TodoCommand {
             .group_by(|td| td.channel_id)
             .into_iter()
             .map(|(chnl, tds)| {
-                let biggest_id = match tds.map(|t| t.id).max() {
-                    Some(b_id) => b_id,
-                    None => 0,
-                };
+                let biggest_id = tds.map(|t| t.id).max().unwrap_or(0);
                 (ChannelId(chnl as u64), AtomicI32::new(biggest_id + 1))
             })
             .collect::<HashMap<_, _>>();

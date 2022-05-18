@@ -6,7 +6,6 @@ extern crate diesel_migrations;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use env_logger;
 use log::{error, info, warn, LevelFilter};
 use std::{
     error::Error,
@@ -31,7 +30,7 @@ embed_migrations!();
 
 fn establish_db_conn(db_url: &String) -> Result<Conn, Box<dyn Error>> {
     let database =
-        SqliteConnection::establish(&db_url).expect(&format!("Error connecting to {}", &db_url));
+        SqliteConnection::establish(db_url).expect(&format!("Error connecting to {}", &db_url));
 
     match embedded_migrations::run(&database) {
         Ok(_) => info!("Database migrations completed"),

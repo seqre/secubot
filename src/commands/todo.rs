@@ -8,6 +8,7 @@ use serenity::{
         interactions::{
             application_command::{
                 ApplicationCommandInteraction,
+                ApplicationCommandInteractionDataOptionValue::Boolean as OptBoolean,
                 ApplicationCommandInteractionDataOptionValue::Integer as OptInteger,
                 ApplicationCommandInteractionDataOptionValue::String as OptString,
                 ApplicationCommandOptionType,
@@ -81,13 +82,20 @@ impl TodoCommand {
         aint.fetch_add(1, Ordering::SeqCst)
     }
 
-    fn list(&self, db: &Conn, channelid: ChannelId) -> TodoResult {
+    fn list(&self, db: &Conn, channelid: ChannelId, completed: &bool) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        let results = todos
-            .filter(channel_id.eq(channelid.0 as i64))
-            .filter(completion_date.is_null())
-            .load::<Todo>(&*db.lock().unwrap());
+        // FIXME: looks bad, there needs to be smarter way
+        let results = if !completed {
+            todos
+                .filter(channel_id.eq(channelid.0 as i64))
+                .filter(completion_date.is_null())
+                .load::<Todo>(&*db.lock().unwrap())
+        } else {
+            todos
+                .filter(channel_id.eq(channelid.0 as i64))
+                .load::<Todo>(&*db.lock().unwrap())
+        };
 
         match results {
             Ok(todo_list) => {
@@ -191,6 +199,13 @@ impl Command for TodoCommand {
                     .name(TODO_SUBCOMMAND_LIST)
                     .description("List TODO entries")
                     .kind(ApplicationCommandOptionType::SubCommand)
+                    .create_sub_option(|subopt| {
+                        subopt
+                            .name("completed")
+                            .description("Show completed TODOs")
+                            .kind(ApplicationCommandOptionType::Boolean)
+                            .required(false)
+                    })
             })
             .create_option(|option| {
                 option
@@ -262,8 +277,21 @@ impl Command for TodoCommand {
         let subcommand_name = subcommand.name.as_str();
         let args = &subcommand.options;
 
+        println!("{:#?}", command.data);
+
         let result = match subcommand_name {
-            TODO_SUBCOMMAND_LIST => self.list(&secubot.db.clone(), channel),
+            TODO_SUBCOMMAND_LIST => {
+                let completed = if let Some(opt) = args.iter().find(|x| x.name == "completed") {
+                    if let OptBoolean(b) = opt.resolved.as_ref().unwrap() {
+                        b
+                    } else {
+                        &false
+                    }
+                } else {
+                    &false
+                };
+                self.list(&secubot.db.clone(), channel, completed)
+            }
             TODO_SUBCOMMAND_ADD => {
                 if let OptString(content) = args
                     .iter()

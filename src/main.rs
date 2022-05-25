@@ -26,9 +26,9 @@ mod schema;
 mod secubot;
 mod settings;
 
-embed_migrations!();
+fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
+    embed_migrations!("migrations/sqlite");
 
-fn establish_db_conn(db_url: &String) -> Result<Conn, Box<dyn Error>> {
     let database =
         SqliteConnection::establish(db_url).expect(&format!("Error connecting to {}", &db_url));
 
@@ -59,7 +59,7 @@ async fn main() {
     let token = String::from(&settings.discord_token);
     let application_id = settings.application_id;
 
-    let conn = establish_db_conn(&settings.database.url).expect("Error connecting to database");
+    let conn = setup_db(&settings.database.url).expect("Error connecting to database");
     let secubot = Secubot::new(conn);
     let handler = Handler::new(secubot, settings);
     let intents = GatewayIntents::non_privileged();

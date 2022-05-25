@@ -1,9 +1,9 @@
-use log::info;
+use log::{debug, info};
 use serenity::{
     async_trait,
     model::{
         gateway::Ready,
-        id::GuildId,
+        id::{ChannelId, GuildId, MessageId},
         interactions::{application_command::ApplicationCommand, Interaction},
     },
     prelude::*,
@@ -75,5 +75,36 @@ impl EventHandler for Handler {
                 .map(|c| String::from(&c.name))
                 .collect::<Vec<String>>()
         );
+    }
+
+    async fn message_delete(
+        &self,
+        ctx: Context,
+        channel_id: ChannelId,
+        _deleted_message_id: MessageId,
+        _guild_id: Option<GuildId>,
+    ) {
+        if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
+            debug!("Error while sending <deleted>: {:?}", e);
+        };
+    }
+
+    async fn message_delete_bulk(
+        &self,
+        ctx: Context,
+        channel_id: ChannelId,
+        deleted_message_ids: Vec<MessageId>,
+        _guild_id: Option<GuildId>,
+    ) {
+        if let Err(e) = channel_id
+            .say(&ctx, format!("<{}x deleted>", deleted_message_ids.len()))
+            .await
+        {
+            debug!(
+                "Error while sending <{}x deleted>: {:?}",
+                deleted_message_ids.len(),
+                e
+            );
+        };
     }
 }

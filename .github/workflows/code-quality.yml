@@ -6,7 +6,7 @@ on:
 
 jobs:
   linting:
-    name: linting
+    name: Linting
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +22,7 @@ jobs:
           key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-debug-
       - name: Run linter
-        run: cargo clippy --all-features -- -D warnings
+        run: cargo clippy --all-features
 
 
   formatting:

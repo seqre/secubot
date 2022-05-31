@@ -44,6 +44,7 @@ const TODO_SUBCOMMAND_UNCOMPLETE: &str = "uncomplete";
 
 type TodoEntry = (u64, String);
 
+#[derive(Debug)]
 enum TodoReturn {
     Text(String),
     Fields(Vec<TodoEntry>),
@@ -51,6 +52,7 @@ enum TodoReturn {
 
 type TodoResult = Result<TodoReturn, String>;
 
+#[derive(Debug)]
 pub struct TodoCommand {
     iterators: Mutex<HashMap<ChannelId, AtomicI32>>,
 }

@@ -48,6 +48,7 @@ const PING_CHANNEL_BUFFER: usize = 15;
 
 const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 
+#[derive(Debug)]
 struct PingTask {
     pub end_date: Instant,
     pub users: HashSet<UserId>,
@@ -63,6 +64,7 @@ impl PingTask {
     }
 }
 
+#[derive(Debug)]
 struct PingWorker {
     pings: HashMap<ChannelId, Mutex<PingTask>>,
     channel: Receiver<PingWorkerMessage>,
@@ -168,6 +170,7 @@ enum PingWorkerMessage {
     Stop(ChannelId),
 }
 
+#[derive(Debug)]
 pub struct PingCommand {
     _worker: JoinHandle<()>,
     channel: Sender<PingWorkerMessage>,

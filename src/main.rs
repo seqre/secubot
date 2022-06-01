@@ -25,6 +25,7 @@ mod models;
 mod schema;
 mod secubot;
 mod settings;
+mod tasks;
 
 fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
     embed_migrations!("migrations/sqlite");

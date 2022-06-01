@@ -12,19 +12,23 @@ use serenity::{
 use crate::commands::Commands;
 use crate::secubot::Secubot;
 use crate::settings::Settings;
+use crate::tasks::Tasks;
 
 pub struct Handler {
     secubot: Secubot,
     commands: Commands,
+    tasks: Tasks,
     settings: Settings,
 }
 
 impl Handler {
     pub fn new(secubot: Secubot, settings: Settings) -> Self {
         let commands = Commands::new(&secubot);
+        let tasks = Tasks::new();
         Self {
             secubot,
             commands,
+            tasks,
             settings,
         }
     }
@@ -75,6 +79,9 @@ impl EventHandler for Handler {
                 .map(|c| String::from(&c.name))
                 .collect::<Vec<String>>()
         );
+
+        self.tasks.start_tasks();
+        info!("Started tasks");
     }
 
     async fn message_delete(

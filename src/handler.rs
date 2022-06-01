@@ -80,7 +80,7 @@ impl EventHandler for Handler {
                 .collect::<Vec<String>>()
         );
 
-        self.tasks.start_tasks();
+        self.tasks.start_tasks(&self.secubot, ctx.http.clone());
         info!("Started tasks");
     }
 

@@ -1,3 +1,5 @@
+use std::{collections::HashMap, error::Error};
+
 use async_trait::async_trait;
 use log::{debug, warn};
 use serenity::{
@@ -7,7 +9,6 @@ use serenity::{
         application_command::ApplicationCommandInteraction, Interaction, InteractionResponseType,
     },
 };
-use std::{collections::HashMap, error::Error};
 
 use crate::{
     commands::{ping::PingCommand, todo::TodoCommand},

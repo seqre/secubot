@@ -4,20 +4,21 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
-use diesel::prelude::*;
-use diesel::sqlite::SqliteConnection;
-use log::{error, info, warn, LevelFilter};
 use std::{
     error::Error,
     str::FromStr,
     sync::{Arc, Mutex},
 };
 
+use diesel::{prelude::*, sqlite::SqliteConnection};
+use log::{error, info, warn, LevelFilter};
 use serenity::prelude::*;
 
-use crate::handler::Handler;
-use crate::secubot::{Conn, Secubot};
-use crate::settings::Settings;
+use crate::{
+    handler::Handler,
+    secubot::{Conn, Secubot},
+    settings::Settings,
+};
 
 mod commands;
 mod handler;

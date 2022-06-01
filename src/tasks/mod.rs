@@ -1,13 +1,13 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use serenity::http::client::Http;
-use std::sync::Arc;
 use tokio::{
     task,
     time::{sleep, Duration},
 };
 
-use crate::secubot::Secubot;
-use crate::tasks::todo_reminder::TodoReminderTask;
+use crate::{secubot::Secubot, tasks::todo_reminder::TodoReminderTask};
 
 mod todo_reminder;
 
@@ -20,7 +20,7 @@ pub trait Task: Send + Sync {
 pub struct Tasks;
 
 impl Tasks {
-    //FIXME: the whole implementation works, but it less than ideal
+    // FIXME: the whole implementation works, but it less than ideal
     pub fn new() -> Self {
         Self {}
     }

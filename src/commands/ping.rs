@@ -1,3 +1,9 @@
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::debug;
@@ -25,12 +31,6 @@ use tokio::{
     },
     task::JoinHandle,
     time::sleep,
-};
-
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::{Duration, Instant},
 };
 
 use crate::{

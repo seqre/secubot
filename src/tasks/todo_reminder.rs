@@ -1,11 +1,14 @@
-use crate::models::*;
-use crate::secubot::{Conn, Secubot};
-use crate::tasks::Task;
-use async_trait::async_trait;
-use serenity::http::client::Http;
-use serenity::model::id::ChannelId;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use serenity::{http::client::Http, model::id::ChannelId};
 use tokio::time::Duration;
+
+use crate::{
+    models::*,
+    secubot::{Conn, Secubot},
+    tasks::Task,
+};
 
 pub struct TodoReminderTask {
     db: Conn,
@@ -29,9 +32,9 @@ impl Task for TodoReminderTask {
     }
 
     async fn work(&self) {
-        use crate::schema::todos::dsl::*;
-        use crate::*;
         use itertools::Itertools;
+
+        use crate::{schema::todos::dsl::*, *};
 
         let results = todos
             .filter(completion_date.is_null())

@@ -1,5 +1,12 @@
-use async_trait::async_trait;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicI32, Ordering},
+};
 
+use async_trait::async_trait;
+use chrono::{NaiveDateTime, Utc};
+use diesel::result::Error::NotFound;
+use itertools::Itertools;
 use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
@@ -8,23 +15,14 @@ use serenity::{
         interactions::{
             application_command::{
                 ApplicationCommandInteraction,
-                ApplicationCommandInteractionDataOptionValue::Boolean as OptBoolean,
-                ApplicationCommandInteractionDataOptionValue::Integer as OptInteger,
-                ApplicationCommandInteractionDataOptionValue::String as OptString,
+                ApplicationCommandInteractionDataOptionValue::{
+                    Boolean as OptBoolean, Integer as OptInteger, String as OptString,
+                },
                 ApplicationCommandOptionType,
             },
             InteractionResponseType,
         },
     },
-};
-
-use chrono::{NaiveDateTime, Utc};
-use diesel::result::Error::NotFound;
-use itertools::Itertools;
-
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicI32, Ordering},
 };
 
 use crate::{
@@ -172,6 +170,7 @@ impl TodoCommand {
             &todo_id
         )))
     }
+
     fn uncomplete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 

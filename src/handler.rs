@@ -9,10 +9,7 @@ use serenity::{
     prelude::*,
 };
 
-use crate::commands::Commands;
-use crate::secubot::Secubot;
-use crate::settings::Settings;
-use crate::tasks::Tasks;
+use crate::{commands::Commands, secubot::Secubot, settings::Settings, tasks::Tasks};
 
 pub struct Handler {
     secubot: Secubot,

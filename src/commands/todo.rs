@@ -1,5 +1,12 @@
-use async_trait::async_trait;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicI32, Ordering},
+};
 
+use async_trait::async_trait;
+use chrono::{NaiveDateTime, Utc};
+use diesel::result::Error::NotFound;
+use itertools::Itertools;
 use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
@@ -8,22 +15,14 @@ use serenity::{
         interactions::{
             application_command::{
                 ApplicationCommandInteraction,
-                ApplicationCommandInteractionDataOptionValue::Integer as OptInteger,
-                ApplicationCommandInteractionDataOptionValue::String as OptString,
+                ApplicationCommandInteractionDataOptionValue::{
+                    Boolean as OptBoolean, Integer as OptInteger, String as OptString,
+                },
                 ApplicationCommandOptionType,
             },
             InteractionResponseType,
         },
     },
-};
-
-use chrono::{NaiveDateTime, Utc};
-use diesel::result::Error::NotFound;
-use itertools::Itertools;
-
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicI32, Ordering},
 };
 
 use crate::{
@@ -33,16 +32,17 @@ use crate::{
     *,
 };
 
-const TODO_COMMAND: &'static str = "todo";
-const TODO_COMMAND_DESC: &'static str = "Todo";
-const TODO_SUBCOMMAND_LIST: &'static str = "list";
-const TODO_SUBCOMMAND_ADD: &'static str = "add";
-const TODO_SUBCOMMAND_DELETE: &'static str = "delete";
-const TODO_SUBCOMMAND_COMPLETE: &'static str = "complete";
-const TODO_SUBCOMMAND_UNCOMPLETE: &'static str = "uncomplete";
+const TODO_COMMAND: &str = "todo";
+const TODO_COMMAND_DESC: &str = "Todo";
+const TODO_SUBCOMMAND_LIST: &str = "list";
+const TODO_SUBCOMMAND_ADD: &str = "add";
+const TODO_SUBCOMMAND_DELETE: &str = "delete";
+const TODO_SUBCOMMAND_COMPLETE: &str = "complete";
+const TODO_SUBCOMMAND_UNCOMPLETE: &str = "uncomplete";
 
 type TodoEntry = (u64, String);
 
+#[derive(Debug)]
 enum TodoReturn {
     Text(String),
     Fields(Vec<TodoEntry>),
@@ -50,6 +50,7 @@ enum TodoReturn {
 
 type TodoResult = Result<TodoReturn, String>;
 
+#[derive(Debug)]
 pub struct TodoCommand {
     iterators: Mutex<HashMap<ChannelId, AtomicI32>>,
 }
@@ -65,10 +66,7 @@ impl TodoCommand {
             .group_by(|td| td.channel_id)
             .into_iter()
             .map(|(chnl, tds)| {
-                let biggest_id = match tds.map(|t| t.id).max() {
-                    Some(b_id) => b_id,
-                    None => 0,
-                };
+                let biggest_id = tds.map(|t| t.id).max().unwrap_or(0);
                 (ChannelId(chnl as u64), AtomicI32::new(biggest_id + 1))
             })
             .collect::<HashMap<_, _>>();
@@ -84,13 +82,20 @@ impl TodoCommand {
         aint.fetch_add(1, Ordering::SeqCst)
     }
 
-    fn list(&self, db: &Conn, channelid: ChannelId) -> TodoResult {
+    fn list(&self, db: &Conn, channelid: ChannelId, completed: &bool) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        let results = todos
-            .filter(channel_id.eq(channelid.0 as i64))
-            .filter(completion_date.is_null())
-            .load::<Todo>(&*db.lock().unwrap());
+        // FIXME: looks bad, there needs to be smarter way
+        let results = if !completed {
+            todos
+                .filter(channel_id.eq(channelid.0 as i64))
+                .filter(completion_date.is_null())
+                .load::<Todo>(&*db.lock().unwrap())
+        } else {
+            todos
+                .filter(channel_id.eq(channelid.0 as i64))
+                .load::<Todo>(&*db.lock().unwrap())
+        };
 
         match results {
             Ok(todo_list) => {
@@ -165,6 +170,7 @@ impl TodoCommand {
             &todo_id
         )))
     }
+
     fn uncomplete(&self, db: &Conn, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
@@ -194,6 +200,13 @@ impl Command for TodoCommand {
                     .name(TODO_SUBCOMMAND_LIST)
                     .description("List TODO entries")
                     .kind(ApplicationCommandOptionType::SubCommand)
+                    .create_sub_option(|subopt| {
+                        subopt
+                            .name("completed")
+                            .description("Show completed TODOs")
+                            .kind(ApplicationCommandOptionType::Boolean)
+                            .required(false)
+                    })
             })
             .create_option(|option| {
                 option
@@ -265,8 +278,21 @@ impl Command for TodoCommand {
         let subcommand_name = subcommand.name.as_str();
         let args = &subcommand.options;
 
+        println!("{:#?}", command.data);
+
         let result = match subcommand_name {
-            TODO_SUBCOMMAND_LIST => self.list(&secubot.db.clone(), channel),
+            TODO_SUBCOMMAND_LIST => {
+                let completed = if let Some(opt) = args.iter().find(|x| x.name == "completed") {
+                    if let OptBoolean(b) = opt.resolved.as_ref().unwrap() {
+                        b
+                    } else {
+                        &false
+                    }
+                } else {
+                    &false
+                };
+                self.list(&secubot.db.clone(), channel, completed)
+            }
             TODO_SUBCOMMAND_ADD => {
                 if let OptString(content) = args
                     .iter()

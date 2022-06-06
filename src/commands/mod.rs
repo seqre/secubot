@@ -1,3 +1,5 @@
+use std::{collections::HashMap, error::Error};
+
 use async_trait::async_trait;
 use log::{debug, warn};
 use serenity::{
@@ -7,7 +9,6 @@ use serenity::{
         application_command::ApplicationCommandInteraction, Interaction, InteractionResponseType,
     },
 };
-use std::{collections::HashMap, error::Error};
 
 use crate::{
     commands::{ping::PingCommand, todo::TodoCommand},
@@ -81,24 +82,22 @@ impl Commands {
                 if !error_message.is_empty() {
                     // Try to create message (if not exists) and then edit it (if existed already)
                     warn!("Error while handling command: {:?}", error_message);
-                    match command
+                    if let Err(e) = command
                         .create_interaction_response(&ctx.http, |response| {
                             response.kind(InteractionResponseType::ChannelMessageWithSource)
                         })
                         .await
                     {
-                        Err(e) => debug!("Error while creating response: {:?}", e),
-                        _ => (),
+                        debug!("Error while creating response: {:?}", e)
                     };
 
-                    match command
+                    if let Err(e) = command
                         .edit_original_interaction_response(&ctx.http, |response| {
                             response.content(error_message)
                         })
                         .await
                     {
-                        Err(e) => debug!("Error while editing response: {:?}", e),
-                        _ => (),
+                        debug!("Error while editing response: {:?}", e)
                     };
                 }
             } else {

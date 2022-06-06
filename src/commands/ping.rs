@@ -1,3 +1,9 @@
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::debug;
@@ -27,27 +33,22 @@ use tokio::{
     time::sleep,
 };
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::{Duration, Instant},
-};
-
 use crate::{
     commands::{Command, CommandResult},
     secubot::Secubot,
 };
 
-const PING_COMMAND: &'static str = "ping";
-const PING_COMMAND_DESC: &'static str = "The Ping Cannon";
-const PING_SUBCOMMAND_COMMENCE: &'static str = "commence";
-const PING_SUBCOMMAND_REMOVE: &'static str = "remove";
-const PING_SUBCOMMAND_STOP: &'static str = "stop";
+const PING_COMMAND: &str = "ping";
+const PING_COMMAND_DESC: &str = "The Ping Cannon";
+const PING_SUBCOMMAND_COMMENCE: &str = "commence";
+const PING_SUBCOMMAND_REMOVE: &str = "remove";
+const PING_SUBCOMMAND_STOP: &str = "stop";
 
 const PING_CHANNEL_BUFFER: usize = 15;
 
 const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 
+#[derive(Debug)]
 struct PingTask {
     pub end_date: Instant,
     pub users: HashSet<UserId>,
@@ -63,6 +64,7 @@ impl PingTask {
     }
 }
 
+#[derive(Debug)]
 struct PingWorker {
     pings: HashMap<ChannelId, Mutex<PingTask>>,
     channel: Receiver<PingWorkerMessage>,
@@ -73,7 +75,7 @@ impl PingWorker {
     pub fn new(channel: Receiver<PingWorkerMessage>) -> Self {
         Self {
             pings: HashMap::new(),
-            channel: channel,
+            channel,
             http: None,
         }
     }
@@ -87,7 +89,7 @@ impl PingWorker {
                 if let Ok(ping_task) = ping_task.try_lock() {
                     if ping_task.is_done() {
                         leave = false;
-                        queue.push(channel.clone());
+                        queue.push(*channel);
                     }
                 }
                 leave
@@ -117,7 +119,7 @@ impl PingWorker {
 
             self.handle_message().await;
 
-            if self.pings.len() == 0 {
+            if self.pings.is_empty() {
                 sleep(Duration::from_secs(1)).await;
             } else {
                 sleep(Duration::from_millis(900)).await;
@@ -168,6 +170,7 @@ enum PingWorkerMessage {
     Stop(ChannelId),
 }
 
+#[derive(Debug)]
 pub struct PingCommand {
     _worker: JoinHandle<()>,
     channel: Sender<PingWorkerMessage>,
@@ -187,39 +190,36 @@ impl PingCommand {
     }
 
     async fn commence(&self, http: Arc<Http>, channel_id: ChannelId, users: HashSet<UserId>) {
-        match self
+        if let Err(e) = self
             .channel
             .send(PingWorkerMessage::Commence(http.clone(), channel_id, users))
             .await
         {
-            Err(e) => debug!("Error while sending Commence message: {:?}", e),
-            _ => (),
+            debug!("Error while sending Commence message: {:?}", e)
         };
     }
 
     async fn remove(&self, channel_id: &ChannelId, users: HashSet<UserId>) {
-        match self
+        if let Err(e) = self
             .channel
             .send(PingWorkerMessage::Remove(*channel_id, users))
             .await
         {
-            Err(e) => debug!("Error while sending Commence message: {:?}", e),
-            _ => (),
+            debug!("Error while sending Remove message: {:?}", e)
         };
     }
 
     async fn stop(&self, channel_id: &ChannelId) {
-        match self
+        if let Err(e) = self
             .channel
             .send(PingWorkerMessage::Stop(*channel_id))
             .await
         {
-            Err(e) => debug!("Error while sending Commence message: {:?}", e),
-            _ => (),
+            debug!("Error while sending Stop message: {:?}", e)
         };
     }
 
-    fn input_to_users(input: &String) -> HashSet<UserId> {
+    fn input_to_users(input: &str) -> HashSet<UserId> {
         lazy_static! {
             static ref RE: Regex = Regex::new(r"<@!(\d+)>").unwrap();
         }
@@ -308,7 +308,7 @@ impl Command for PingCommand {
                     .expect("Expected users")
                 {
                     let users = PingCommand::input_to_users(users);
-                    if users.len() == 0 {
+                    if users.is_empty() {
                         "No valid users found, aborting."
                     } else {
                         match name {

@@ -21,7 +21,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_derive = { version = "1.0" }
 regex = { version = "1.5" }
 lazy_static = { version = "1.4" }
-itertools = { version = "0.8" }
+itertools = { version = "0.10" }
 config = { version = "0.13" }
 glob = { version = "0.3" }
 log = { version = "0.4", features = ["std", "serde"] }

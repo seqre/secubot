@@ -21,6 +21,7 @@ use crate::{
 };
 
 mod commands;
+mod events;
 mod handler;
 mod models;
 mod schema;
@@ -40,6 +41,14 @@ fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
     };
 
     Ok(Arc::new(Mutex::new(database)))
+}
+
+fn get_intents() -> GatewayIntents {
+    let mut base = GatewayIntents::non_privileged();
+    if cfg!(feature = "msg_content") {
+        base |= GatewayIntents::MESSAGE_CONTENT;
+    }
+    base
 }
 
 #[tokio::main]
@@ -64,7 +73,7 @@ async fn main() {
     let conn = setup_db(&settings.database.url).expect("Error connecting to database");
     let secubot = Secubot::new(conn);
     let handler = Handler::new(secubot, settings);
-    let intents = GatewayIntents::non_privileged();
+    let intents = get_intents();
 
     let mut client = Client::builder(token, intents)
         .event_handler(handler)

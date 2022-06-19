@@ -2,6 +2,7 @@ use log::{debug, info};
 use serenity::{
     async_trait,
     model::{
+        channel::Message,
         gateway::Ready,
         id::{ChannelId, GuildId, MessageId},
         interactions::{application_command::ApplicationCommand, Interaction},
@@ -78,6 +79,16 @@ impl EventHandler for Handler {
 
         self.tasks.start_tasks(&self.secubot, ctx.http.clone());
         info!("Started tasks");
+    }
+
+    #[cfg(feature = "msg_content")]
+    async fn message(&self, ctx: Context, new_message: Message) {
+        if new_message.is_own(&ctx.cache) {
+            return;
+        }
+
+        use crate::events::handle_message;
+        handle_message(self, ctx, new_message).await;
     }
 
     async fn message_delete(

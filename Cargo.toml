@@ -25,3 +25,10 @@ config = { version = "0.13" }
 glob = { version = "0.3" }
 log = { version = "0.4", features = ["std", "serde"] }
 env_logger = { version = "0.9" }
+url_encoded_data = { version = "0.6.1", optional = true }
+
+[features]
+default = ["msg_content"]
+
+# Enable Message Content intent
+msg_content = ["dep:url_encoded_data"]

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use serenity::http::client::Http;
+use serenity::{async_trait, http::client::Http};
 use tokio::{
     task,
     time::{sleep, Duration},

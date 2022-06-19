@@ -3,11 +3,11 @@ use std::{
     sync::atomic::{AtomicI32, Ordering},
 };
 
-use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
 use diesel::result::Error::NotFound;
 use itertools::Itertools;
 use serenity::{
+    async_trait,
     builder::CreateApplicationCommand,
     client::Context,
     model::{

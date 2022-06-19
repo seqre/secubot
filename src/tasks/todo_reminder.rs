@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use serenity::{http::client::Http, model::id::ChannelId};
+use serenity::{async_trait, http::client::Http, model::id::ChannelId};
 use tokio::time::Duration;
 
 use crate::{

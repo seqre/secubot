@@ -32,8 +32,8 @@ mod tasks;
 fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
     embed_migrations!("migrations/sqlite");
 
-    let database =
-        SqliteConnection::establish(db_url).expect(&format!("Error connecting to {}", &db_url));
+    let database = SqliteConnection::establish(db_url)
+        .unwrap_or_else(|_| panic!("Error connecting to {}", &db_url));
 
     match embedded_migrations::run(&database) {
         Ok(_) => info!("Database migrations completed"),

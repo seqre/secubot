@@ -48,14 +48,15 @@ impl Task for TodoReminderTask {
             .collect();
 
         for (chnl, count) in channels {
-            chnl.send_message(&self.http, |message| {
-                message.embed(|embed| {
-                    embed.description(format!("There are {} uncompleted TODOs here!", count));
-                    embed.title("TODOs reminder");
-                    embed
+            let _ = chnl
+                .send_message(&self.http, |message| {
+                    message.embed(|embed| {
+                        embed.description(format!("There are {} uncompleted TODOs here!", count));
+                        embed.title("TODOs reminder");
+                        embed
+                    })
                 })
-            })
-            .await;
+                .await;
         }
     }
 }

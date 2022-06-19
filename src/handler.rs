@@ -40,7 +40,6 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
 
-        info!("Guild slash commands:");
         for guild in &self.settings.commands.guilds {
             let guild_commands =
                 GuildId::set_application_commands(&GuildId(guild.id), &ctx.http, |commands| {
@@ -50,7 +49,7 @@ impl EventHandler for Handler {
                 .await;
 
             info!(
-                " - Guild ({}) commands: {:?}",
+                "Guild ({}) commands: {:?}",
                 guild.id,
                 guild_commands
                     .unwrap()

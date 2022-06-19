@@ -1,8 +1,8 @@
 use std::{collections::HashMap, error::Error};
 
-use async_trait::async_trait;
 use log::{debug, warn};
 use serenity::{
+    async_trait,
     builder::{CreateApplicationCommand, CreateApplicationCommands},
     client::Context,
     model::interactions::{

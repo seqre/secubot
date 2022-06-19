@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::debug;
 use regex::Regex;
 use serenity::{
+    async_trait,
     builder::CreateApplicationCommand,
     client::Context,
     http::client::Http,

@@ -126,6 +126,7 @@ impl TodoCommand {
         } else {
             let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
             let new_id = self.get_id(channelid);
+            let text = text.replace("@", "@\u{200B}").replace("`", "'");
             let new_todo = NewTodo {
                 channel_id: &(channelid.0 as i64),
                 id: &new_id,
@@ -138,7 +139,7 @@ impl TodoCommand {
                 .execute(&*db.lock().unwrap())
                 .expect("Error while adding to database.");
 
-            Ok(TodoReturn::Text(format!("TODO ``{}`` added.", &text)))
+            Ok(TodoReturn::Text(format!("TODO `{}` added.", &text)))
         }
     }
 

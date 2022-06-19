@@ -59,8 +59,7 @@ impl TodoCommand {
     pub fn new(secubot: &Secubot) -> Self {
         use crate::schema::todos::dsl::*;
 
-        let db = secubot.db.clone();
-        let todo_list = todos.load::<Todo>(&*db.lock().unwrap()).unwrap();
+        let todo_list = todos.load::<Todo>(&*secubot.db.lock().unwrap()).unwrap();
         let iterators = todo_list
             .into_iter()
             .group_by(|td| td.channel_id)
@@ -105,7 +104,7 @@ impl TodoCommand {
                     .collect();
                 if output.is_empty() {
                     Ok(TodoReturn::Text(String::from(
-                        "There are no incompleted TODOs in that channel.",
+                        "There are no incompleted TODOs in this channel.",
                     )))
                 } else {
                     Ok(TodoReturn::Fields(output))
@@ -126,7 +125,7 @@ impl TodoCommand {
         } else {
             let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
             let new_id = self.get_id(channelid);
-            let text = text.replace("@", "@\u{200B}").replace("`", "'");
+            let text = text.replace('@', "@\u{200B}").replace('`', "'");
             let new_todo = NewTodo {
                 channel_id: &(channelid.0 as i64),
                 id: &new_id,
@@ -279,8 +278,6 @@ impl Command for TodoCommand {
         let subcommand_name = subcommand.name.as_str();
         let args = &subcommand.options;
 
-        println!("{:#?}", command.data);
-
         let result = match subcommand_name {
             TODO_SUBCOMMAND_LIST => {
                 let completed = if let Some(opt) = args.iter().find(|x| x.name == "completed") {
@@ -333,10 +330,7 @@ impl Command for TodoCommand {
             }
         };
 
-        let response_data = match result {
-            Ok(content) => content,
-            Err(error) => TodoReturn::Text(format!("ERROR: {}", error)),
-        };
+        let response_data = result.unwrap_or_else(|e| TodoReturn::Text(format!("ERROR: {}", e)));
 
         command
             .create_interaction_response(&ctx.http, |response| {
@@ -349,11 +343,8 @@ impl Command for TodoCommand {
                                 let mut new_fields: Vec<(u64, String, bool)> = fields
                                     .into_iter()
                                     .map(|(x, y)| {
-                                        if y.len() > 25 {
-                                            (x, y, false)
-                                        } else {
-                                            (x, y, true)
-                                        }
+                                        let b = y.len() <= 25;
+                                        (x, y, b)
                                     })
                                     .collect();
                                 new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));

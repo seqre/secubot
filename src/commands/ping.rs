@@ -119,11 +119,7 @@ impl PingWorker {
 
             self.handle_message().await;
 
-            if self.pings.is_empty() {
-                sleep(Duration::from_secs(1)).await;
-            } else {
-                sleep(Duration::from_millis(900)).await;
-            }
+            sleep(Duration::from_secs(1)).await;
         }
     }
 

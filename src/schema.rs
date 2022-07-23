@@ -1,3 +1,5 @@
+use diesel::table;
+
 table! {
     todos (id) {
         id -> Integer,

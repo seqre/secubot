@@ -2,10 +2,10 @@ use log::{debug, info};
 use serenity::{
     async_trait,
     model::{
+        application::{command::Command, interaction::Interaction},
         channel::Message,
         gateway::Ready,
         id::{ChannelId, GuildId, MessageId},
-        interactions::{application_command::ApplicationCommand, Interaction},
     },
     prelude::*,
 };
@@ -60,13 +60,12 @@ impl EventHandler for Handler {
             );
         }
 
-        let global_commands =
-            ApplicationCommand::set_global_application_commands(&ctx.http, |commands| {
-                self.commands
-                    .register_commands(commands, &self.settings.commands.globals);
-                commands
-            })
-            .await;
+        let global_commands = Command::set_global_application_commands(&ctx.http, |commands| {
+            self.commands
+                .register_commands(commands, &self.settings.commands.globals);
+            commands
+        })
+        .await;
 
         info!(
             "Global slash commands: {:?}",

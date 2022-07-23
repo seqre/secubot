@@ -1,9 +1,3 @@
-#[macro_use]
-extern crate diesel;
-
-#[macro_use]
-extern crate diesel_migrations;
-
 use std::{
     error::Error,
     str::FromStr,
@@ -11,6 +5,7 @@ use std::{
 };
 
 use diesel::{prelude::*, sqlite::SqliteConnection};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::{error, info, warn, LevelFilter};
 use serenity::prelude::*;
 
@@ -29,13 +24,13 @@ mod secubot;
 mod settings;
 mod tasks;
 
-fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
-    embed_migrations!("migrations/sqlite");
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
-    let database = SqliteConnection::establish(db_url)
+fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
+    let mut database = SqliteConnection::establish(db_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", &db_url));
 
-    match embedded_migrations::run(&database) {
+    match &database.run_pending_migrations(MIGRATIONS) {
         Ok(_) => info!("Database migrations completed"),
         Err(e) => error!("Database migrations error: {:?}", e),
     };

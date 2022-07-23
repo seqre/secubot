@@ -11,17 +11,19 @@ use serenity::{
     builder::CreateApplicationCommand,
     client::Context,
     model::{
-        id::ChannelId,
-        interactions::{
-            application_command::{
-                ApplicationCommandInteraction,
-                ApplicationCommandInteractionDataOptionValue::{
-                    Boolean as OptBoolean, Integer as OptInteger, String as OptString,
+        application::{
+            command::CommandOptionType,
+            interaction::{
+                application_command::{
+                    ApplicationCommandInteraction,
+                    CommandDataOptionValue::{
+                        Boolean as OptBoolean, Integer as OptInteger, String as OptString,
+                    },
                 },
-                ApplicationCommandOptionType,
+                InteractionResponseType,
             },
-            InteractionResponseType,
         },
+        id::ChannelId,
     },
 };
 
@@ -59,7 +61,9 @@ impl TodoCommand {
     pub fn new(secubot: &Secubot) -> Self {
         use crate::schema::todos::dsl::*;
 
-        let todo_list = todos.load::<Todo>(&*secubot.db.lock().unwrap()).unwrap();
+        let todo_list = todos
+            .load::<Todo>(&mut *secubot.db.lock().unwrap())
+            .unwrap();
         let iterators = todo_list
             .into_iter()
             .group_by(|td| td.channel_id)
@@ -89,11 +93,11 @@ impl TodoCommand {
             todos
                 .filter(channel_id.eq(channelid.0 as i64))
                 .filter(completion_date.is_null())
-                .load::<Todo>(&*db.lock().unwrap())
+                .load::<Todo>(&mut *db.lock().unwrap())
         } else {
             todos
                 .filter(channel_id.eq(channelid.0 as i64))
-                .load::<Todo>(&*db.lock().unwrap())
+                .load::<Todo>(&mut *db.lock().unwrap())
         };
 
         match results {
@@ -135,7 +139,7 @@ impl TodoCommand {
 
             diesel::insert_into(todos)
                 .values(&new_todo)
-                .execute(&*db.lock().unwrap())
+                .execute(&mut *db.lock().unwrap())
                 .expect("Error while adding to database.");
 
             Ok(TodoReturn::Text(format!("TODO `{}` added.", &text)))
@@ -146,7 +150,7 @@ impl TodoCommand {
         use crate::schema::todos::dsl::*;
 
         diesel::delete(todos.find(*todo_id as i32))
-            .execute(&*db.lock().unwrap())
+            .execute(&mut *db.lock().unwrap())
             .expect("Entry not found.");
 
         Ok(TodoReturn::Text(format!(
@@ -162,7 +166,7 @@ impl TodoCommand {
 
         diesel::update(todos.find(*todo_id as i32))
             .set(completion_date.eq(&time.to_string()))
-            .execute(&*db.lock().unwrap())
+            .execute(&mut *db.lock().unwrap())
             .expect("Entry not found.");
 
         Ok(TodoReturn::Text(format!(
@@ -176,7 +180,7 @@ impl TodoCommand {
 
         diesel::update(todos.find(*todo_id as i32))
             .set(completion_date.eq::<Option<String>>(None))
-            .execute(&*db.lock().unwrap())
+            .execute(&mut *db.lock().unwrap())
             .expect("Entry not found.");
 
         Ok(TodoReturn::Text(format!(
@@ -199,12 +203,12 @@ impl Command for TodoCommand {
                 option
                     .name(TODO_SUBCOMMAND_LIST)
                     .description("List TODO entries")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("completed")
                             .description("Show completed TODOs")
-                            .kind(ApplicationCommandOptionType::Boolean)
+                            .kind(CommandOptionType::Boolean)
                             .required(false)
                     })
             })
@@ -212,12 +216,12 @@ impl Command for TodoCommand {
                 option
                     .name(TODO_SUBCOMMAND_ADD)
                     .description("Add TODO entry")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("content")
                             .description("TODO content")
-                            .kind(ApplicationCommandOptionType::String)
+                            .kind(CommandOptionType::String)
                             .required(true)
                     })
             })
@@ -225,12 +229,12 @@ impl Command for TodoCommand {
                 option
                     .name(TODO_SUBCOMMAND_COMPLETE)
                     .description("Complete TODO entry")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("id")
                             .description("TODO id")
-                            .kind(ApplicationCommandOptionType::Integer)
+                            .kind(CommandOptionType::Integer)
                             .required(true)
                     })
             })
@@ -238,12 +242,12 @@ impl Command for TodoCommand {
                 option
                     .name(TODO_SUBCOMMAND_UNCOMPLETE)
                     .description("Uncomplete TODO entry")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("id")
                             .description("TODO id")
-                            .kind(ApplicationCommandOptionType::Integer)
+                            .kind(CommandOptionType::Integer)
                             .required(true)
                     })
             })
@@ -251,12 +255,12 @@ impl Command for TodoCommand {
                 option
                     .name(TODO_SUBCOMMAND_DELETE)
                     .description("Delete TODO entry")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("id")
                             .description("TODO id")
-                            .kind(ApplicationCommandOptionType::Integer)
+                            .kind(CommandOptionType::Integer)
                             .required(true)
                     })
             });
@@ -273,7 +277,7 @@ impl Command for TodoCommand {
             .data
             .options
             .iter()
-            .find(|x| x.kind == ApplicationCommandOptionType::SubCommand)
+            .find(|x| x.kind == CommandOptionType::SubCommand)
             .unwrap();
         let subcommand_name = subcommand.name.as_str();
         let args = &subcommand.options;

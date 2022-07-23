@@ -5,7 +5,7 @@ use serenity::{
     async_trait,
     builder::{CreateApplicationCommand, CreateApplicationCommands},
     client::Context,
-    model::interactions::{
+    model::application::interaction::{
         application_command::ApplicationCommandInteraction, Interaction, InteractionResponseType,
     },
 };

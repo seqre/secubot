@@ -37,7 +37,7 @@ impl Task for TodoReminderTask {
 
         let results = todos
             .filter(completion_date.is_null())
-            .load::<Todo>(&*self.db.lock().unwrap());
+            .load::<Todo>(&mut *self.db.lock().unwrap());
 
         let channels: Vec<(ChannelId, u32)> = results
             .unwrap()

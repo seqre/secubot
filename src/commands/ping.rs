@@ -13,15 +13,16 @@ use serenity::{
     client::Context,
     http::client::Http,
     model::{
-        id::{ChannelId, UserId},
-        interactions::{
-            application_command::{
-                ApplicationCommandInteraction,
-                ApplicationCommandInteractionDataOptionValue::String as OptString,
-                ApplicationCommandOptionType,
+        application::{
+            command::CommandOptionType,
+            interaction::{
+                application_command::{
+                    ApplicationCommandInteraction, CommandDataOptionValue::String as OptString,
+                },
+                InteractionResponseType,
             },
-            InteractionResponseType,
         },
+        id::{ChannelId, UserId},
     },
 };
 use tokio::{
@@ -243,12 +244,12 @@ impl Command for PingCommand {
                 option
                     .name(PING_SUBCOMMAND_COMMENCE)
                     .description("Commence the Ping Cannon")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("users")
                             .description("users to ping")
-                            .kind(ApplicationCommandOptionType::String)
+                            .kind(CommandOptionType::String)
                             .required(true)
                     })
             })
@@ -256,12 +257,12 @@ impl Command for PingCommand {
                 option
                     .name(PING_SUBCOMMAND_REMOVE)
                     .description("Remove users from running cannon")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
                     .create_sub_option(|subopt| {
                         subopt
                             .name("users")
                             .description("users to remove")
-                            .kind(ApplicationCommandOptionType::String)
+                            .kind(CommandOptionType::String)
                             .required(true)
                     })
             })
@@ -269,7 +270,7 @@ impl Command for PingCommand {
                 option
                     .name(PING_SUBCOMMAND_STOP)
                     .description("Stop the Ping Cannon")
-                    .kind(ApplicationCommandOptionType::SubCommand)
+                    .kind(CommandOptionType::SubCommand)
             });
     }
 
@@ -284,7 +285,7 @@ impl Command for PingCommand {
             .data
             .options
             .iter()
-            .find(|x| x.kind == ApplicationCommandOptionType::SubCommand)
+            .find(|x| x.kind == CommandOptionType::SubCommand)
             .unwrap();
         let subcommand_name = subcommand.name.as_str();
         let args = &subcommand.options;

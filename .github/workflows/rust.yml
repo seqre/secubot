@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Cache cargo
-        uses: actions/cache@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -23,31 +23,31 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-debug-
-      - name: Build
-        run: cargo build --verbose
+      - run: cargo build --verbose
 
   clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: rustup component add clippy
-      - uses: actions-rs/clippy-check@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
+          components: clippy
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-debug-
+      - run: cargo clippy
 
 
   rustfmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
-          override: true
           components: rustfmt
-      - name: Run rustfmt check
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check

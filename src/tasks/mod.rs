@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use serenity::{async_trait, http::client::Http};
-use tokio::{
-    task,
-    time::{sleep, Duration},
-};
+use tokio::time::{sleep, Duration};
 
 use crate::{secubot::Secubot, tasks::todo_reminder::TodoReminderTask};
 
@@ -31,7 +28,7 @@ impl Tasks {
 
     pub fn start_tasks(&self, secubot: &Secubot, http: Arc<Http>) {
         for task in Tasks::get_tasks(secubot, http) {
-            task::spawn(async move {
+            tokio::task::spawn(async move {
                 loop {
                     task.work().await;
                     sleep(task.get_interval()).await;

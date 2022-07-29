@@ -1,10 +1,10 @@
-use std::{
-    error::Error,
-    str::FromStr,
-    sync::{Arc, Mutex},
-};
+use std::{error::Error, str::FromStr};
 
-use diesel::{prelude::*, sqlite::SqliteConnection};
+use diesel::{
+    prelude::*,
+    r2d2::{ConnectionManager, Pool},
+    sqlite::SqliteConnection,
+};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::{error, info, warn, LevelFilter};
 use serenity::prelude::*;
@@ -27,15 +27,16 @@ mod tasks;
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
 fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
-    let mut database = SqliteConnection::establish(db_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", &db_url));
+    let conn_man = ConnectionManager::<SqliteConnection>::new(db_url);
+    let pool =
+        Pool::new(conn_man).unwrap_or_else(|_| panic!("Error creating pool for: {}", &db_url));
 
-    match &database.run_pending_migrations(MIGRATIONS) {
+    match &pool.get().unwrap().run_pending_migrations(MIGRATIONS) {
         Ok(_) => info!("Database migrations completed"),
         Err(e) => error!("Database migrations error: {:?}", e),
     };
 
-    Ok(Arc::new(Mutex::new(database)))
+    Ok(pool)
 }
 
 fn get_intents() -> GatewayIntents {

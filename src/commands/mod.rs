@@ -24,12 +24,8 @@ pub type CommandResult = Result<(), Box<dyn Error>>;
 pub trait Command: Send + Sync {
     fn get_name(&self) -> &'static str;
     fn add_application_command(&self, command: &mut CreateApplicationCommand);
-    async fn handle(
-        &self,
-        ctx: &Context,
-        command: &ApplicationCommandInteraction,
-        secubot: &Secubot,
-    ) -> CommandResult;
+    async fn handle(&self, ctx: &Context, command: &ApplicationCommandInteraction)
+        -> CommandResult;
 }
 
 pub struct Commands {
@@ -66,18 +62,17 @@ impl Commands {
         }
     }
 
-    pub async fn handle(&self, ctx: Context, interaction: Interaction, secubot: &Secubot) {
+    pub async fn handle(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
             let requested_comm = command.data.name.as_str();
 
             if let Some(bot_command) = &self.commands.get(requested_comm) {
-                let error_message =
-                    if let Err(e) = bot_command.handle(&ctx, &command, secubot).await {
-                        warn!("Could not respond: {:?}", e);
-                        format!("Could not generate response:\n```\n{}\n```", e)
-                    } else {
-                        String::from("")
-                    };
+                let error_message = if let Err(e) = bot_command.handle(&ctx, &command).await {
+                    warn!("Could not respond: {:?}", e);
+                    format!("Could not generate response:\n```\n{}\n```", e)
+                } else {
+                    String::from("")
+                };
 
                 if !error_message.is_empty() {
                     // Try to create message (if not exists) and then edit it (if existed already)

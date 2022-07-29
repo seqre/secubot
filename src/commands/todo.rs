@@ -28,6 +28,7 @@ use serenity::{
         },
         id::ChannelId,
     },
+    utils::MessageBuilder,
 };
 
 use crate::{
@@ -144,21 +145,31 @@ impl TodoCommand {
                 .execute(&mut self.db.get().unwrap())
                 .expect("Error while adding to database.");
 
-            Ok(TodoReturn::Text(format!("TODO `{}` added.", &text)))
+            Ok(TodoReturn::Text(
+                MessageBuilder::new()
+                    .push("TODO (")
+                    .push_mono_safe(&text)
+                    .push(") added.")
+                    .build(),
+            ))
         }
     }
 
     fn delete(&self, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        diesel::delete(todos.find(*todo_id as i32))
-            .execute(&mut self.db.get().unwrap())
+        let deleted: String = diesel::delete(todos.find(*todo_id as i32))
+            .returning(todo)
+            .get_result(&mut self.db.get().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(format!(
-            "TODO (id: `{}`) deleted.",
-            &todo_id
-        )))
+        Ok(TodoReturn::Text(
+            MessageBuilder::new()
+                .push("TODO (")
+                .push_mono_safe(&deleted)
+                .push(") deleted.")
+                .build(),
+        ))
     }
 
     fn complete(&self, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
@@ -166,29 +177,37 @@ impl TodoCommand {
 
         let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
 
-        diesel::update(todos.find(*todo_id as i32))
+        let completed: String = diesel::update(todos.find(*todo_id as i32))
             .set(completion_date.eq(&time.to_string()))
-            .execute(&mut self.db.get().unwrap())
+            .returning(todo)
+            .get_result(&mut self.db.get().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(format!(
-            "TODO (id: `{}`) completed.",
-            &todo_id
-        )))
+        Ok(TodoReturn::Text(
+            MessageBuilder::new()
+                .push("TODO (")
+                .push_mono_safe(&completed)
+                .push(") completed.")
+                .build(),
+        ))
     }
 
     fn uncomplete(&self, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        diesel::update(todos.find(*todo_id as i32))
+        let uncompleted: String = diesel::update(todos.find(*todo_id as i32))
             .set(completion_date.eq::<Option<String>>(None))
-            .execute(&mut self.db.get().unwrap())
+            .returning(todo)
+            .get_result(&mut self.db.get().unwrap())
             .expect("Entry not found.");
 
-        Ok(TodoReturn::Text(format!(
-            "TODO (id: `{}`) uncompleted.",
-            &todo_id
-        )))
+        Ok(TodoReturn::Text(
+            MessageBuilder::new()
+                .push("TODO (")
+                .push_mono_safe(&uncompleted)
+                .push(") uncompleted.")
+                .build(),
+        ))
     }
 }
 

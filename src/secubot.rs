@@ -1,8 +1,9 @@
-use std::sync::{Arc, Mutex};
+use diesel::{
+    r2d2::{ConnectionManager, Pool},
+    sqlite::SqliteConnection,
+};
 
-use diesel::sqlite::SqliteConnection;
-
-pub type Conn = Arc<Mutex<SqliteConnection>>;
+pub type Conn = Pool<ConnectionManager<SqliteConnection>>;
 
 pub struct Secubot {
     pub db: Conn,

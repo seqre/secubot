@@ -34,10 +34,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::{
-    commands::{Command, CommandResult},
-    secubot::Secubot,
-};
+use crate::commands::{Command, CommandResult};
 
 const PING_COMMAND: &str = "ping";
 const PING_COMMAND_DESC: &str = "The Ping Cannon";
@@ -278,7 +275,6 @@ impl Command for PingCommand {
         &self,
         ctx: &Context,
         command: &ApplicationCommandInteraction,
-        _secubot: &Secubot,
     ) -> CommandResult {
         let channel = command.channel_id;
         let subcommand = command

@@ -11,10 +11,11 @@ use serenity::{
 };
 
 use crate::{
-    commands::{ping::PingCommand, todo::TodoCommand},
+    commands::{changelog::ChangelogCommand, ping::PingCommand, todo::TodoCommand},
     Secubot,
 };
 
+mod changelog;
 mod ping;
 mod todo;
 
@@ -43,6 +44,7 @@ impl Commands {
         let commands: Vec<Box<dyn Command>> = vec![
             Box::new(TodoCommand::new(secubot)),
             Box::new(PingCommand::new()),
+            Box::new(ChangelogCommand::new()),
         ];
 
         commands

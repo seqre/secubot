@@ -8,7 +8,10 @@ readme = "README.md"
 repository = "https://github.com/seqre/secubot"
 license = "MIT"
 keywords = ["discord", "bot", "todo", "ping"]
-publish = false
+exclude = ["/.github/", "/config/"]
+
+[badges]
+maintenance = { status = "experimental" }
 
 [dependencies]
 serenity = { version = "0.11", default-features = false, features = ["client", "cache", "gateway", "http", "model", "rustls_backend", "unstable_discord_api"] }

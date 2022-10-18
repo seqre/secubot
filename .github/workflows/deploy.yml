@@ -37,7 +37,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Build secubot binary
-        run: cargo build --release --locked
+        run: cargo build --release --locked --verbose
 
       - name: Rename binary to match target
         run: mv target/release/secubot target/release/secubot-${{ matrix.target }}

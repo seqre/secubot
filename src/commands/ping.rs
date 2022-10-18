@@ -94,7 +94,7 @@ impl PingWorker {
             });
 
             if let Some(http) = &self.http {
-                for channel in queue.iter() {
+                for channel in &queue {
                     channel
                         .say(http, "The Ping Cannon shot enough shots.")
                         .await;
@@ -102,7 +102,7 @@ impl PingWorker {
                 queue.clear();
             }
 
-            for (channel, ping_task) in self.pings.iter() {
+            for (channel, ping_task) in &self.pings {
                 if let Ok(ping_task) = ping_task.try_lock() {
                     if let Some(http) = &self.http {
                         let usrs: String = ping_task
@@ -141,12 +141,20 @@ impl PingWorker {
                     }
                 }
                 Remove(channel_id, users) => {
+                    let mut remove = false;
                     if let Some(ping_task) = self.pings.get_mut(&channel_id) {
                         let mut ping_task = ping_task.lock().await;
                         let usrs = &mut ping_task.users;
                         for usr in users {
                             usrs.remove(&usr);
                         }
+                        if usrs.is_empty() {
+                            remove = true;
+                        }
+                    }
+
+                    if remove {
+                        self.pings.remove(&channel_id);
                     }
                 }
                 Stop(channel_id) => {
@@ -189,7 +197,7 @@ impl PingCommand {
             .send(PingWorkerMessage::Commence(http.clone(), channel_id, users))
             .await
         {
-            debug!("Error while sending Commence message: {:?}", e)
+            debug!("Error while sending Commence message: {:?}", e);
         };
     }
 
@@ -199,7 +207,7 @@ impl PingCommand {
             .send(PingWorkerMessage::Remove(*channel_id, users))
             .await
         {
-            debug!("Error while sending Remove message: {:?}", e)
+            debug!("Error while sending Remove message: {:?}", e);
         };
     }
 
@@ -209,13 +217,13 @@ impl PingCommand {
             .send(PingWorkerMessage::Stop(*channel_id))
             .await
         {
-            debug!("Error while sending Stop message: {:?}", e)
+            debug!("Error while sending Stop message: {:?}", e);
         };
     }
 
     fn input_to_users(input: &str) -> HashSet<UserId> {
         lazy_static! {
-            static ref RE: Regex = Regex::new(r"<@!(\d+)>").unwrap();
+            static ref RE: Regex = Regex::new(r"<@(\d+)>").unwrap();
         }
 
         RE.captures_iter(input)

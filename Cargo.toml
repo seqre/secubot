@@ -1,6 +1,6 @@
 [package]
 name = "secubot"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2021"
 authors = ["Marek 'seqre' Grzelak <marek.grzelak@seqre.dev>"]
 description = "Yet another Discord bot!"
@@ -32,7 +32,7 @@ url_encoded_data = { version = "0.6", optional = true }
 octocrab = { version = "0.17" }
 
 [features]
-default = ["msg_content"]
+default = [] #"msg_content"]
 
 # Enable Message Content intent
 msg_content = ["dep:url_encoded_data"]

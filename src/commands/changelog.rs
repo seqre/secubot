@@ -39,7 +39,7 @@ impl ChangelogCommand {
             .split("\r\n")
             .into_iter()
             .map(|x| {
-                if x.starts_with("#") {
+                if x.starts_with('#') {
                     format!("**{}**\n", x)
                 } else {
                     format!("{}\n", x)

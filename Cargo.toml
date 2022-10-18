@@ -1,6 +1,6 @@
 [package]
 name = "secubot"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2021"
 authors = ["Marek 'seqre' Grzelak <marek.grzelak@seqre.dev>"]
 description = "Yet another Discord bot!"

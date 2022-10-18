@@ -1,0 +1,56 @@
+name: Rust CI
+
+on:
+  push:
+    tag:
+      - v1.*
+
+env:
+  CARGO_TERM_COLOR: always
+
+# See: https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#concurrency.
+# This will ensure that only one commit will be running tests at a time on each PR.
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ["x86_64-unknown-linux-musl"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.toml') }}
+
+      - name: Install packages (Ubuntu)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: apt-get update && apt-get -yy install musl-tools
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build secubot binary
+        run: cargo build --release --locked
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/release/secubot
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${CRATES_IO_TOKEN}
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}

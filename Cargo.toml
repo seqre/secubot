@@ -6,6 +6,7 @@ authors = ["Marek 'seqre' Grzelak <marek.grzelak@seqre.dev>"]
 description = "Yet another Discord bot!"
 readme = "README.md"
 repository = "https://github.com/seqre/secubot"
+documentation = "https://docs.rs/crate/secubot"
 license = "MIT"
 keywords = ["discord", "bot", "todo", "ping"]
 exclude = ["/.github/", "/config/"]

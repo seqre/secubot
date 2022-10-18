@@ -141,12 +141,20 @@ impl PingWorker {
                     }
                 }
                 Remove(channel_id, users) => {
+                    let mut remove = false;
                     if let Some(ping_task) = self.pings.get_mut(&channel_id) {
                         let mut ping_task = ping_task.lock().await;
                         let usrs = &mut ping_task.users;
                         for usr in users {
                             usrs.remove(&usr);
                         }
+                        if usrs.is_empty() {
+                            remove = true;
+                        }
+                    }
+
+                    if remove {
+                        self.pings.remove(&channel_id);
                     }
                 }
                 Stop(channel_id) => {
@@ -215,7 +223,7 @@ impl PingCommand {
 
     fn input_to_users(input: &str) -> HashSet<UserId> {
         lazy_static! {
-            static ref RE: Regex = Regex::new(r"<@!(\d+)>").unwrap();
+            static ref RE: Regex = Regex::new(r"<@(\d+)>").unwrap();
         }
 
         RE.captures_iter(input)

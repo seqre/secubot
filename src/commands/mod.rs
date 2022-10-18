@@ -85,7 +85,7 @@ impl Commands {
                         })
                         .await
                     {
-                        debug!("Error while creating response: {:?}", e)
+                        debug!("Error while creating response: {:?}", e);
                     };
 
                     if let Err(e) = command
@@ -94,7 +94,7 @@ impl Commands {
                         })
                         .await
                     {
-                        debug!("Error while editing response: {:?}", e)
+                        debug!("Error while editing response: {:?}", e);
                     };
                 }
             } else {

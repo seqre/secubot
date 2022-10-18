@@ -3,7 +3,6 @@ use serenity::{
     async_trait,
     model::{
         application::{command::Command, interaction::Interaction},
-        channel::Message,
         gateway::Ready,
         id::{ChannelId, GuildId, MessageId},
     },

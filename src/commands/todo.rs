@@ -88,18 +88,18 @@ impl TodoCommand {
         aint.fetch_add(1, Ordering::SeqCst)
     }
 
-    fn list(&self, channelid: ChannelId, completed: &bool) -> TodoResult {
+    fn list(&self, channelid: ChannelId, completed: bool) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         // FIXME: looks bad, there needs to be smarter way
-        let results = if !completed {
+        let results = if completed {
             todos
                 .filter(channel_id.eq(channelid.0 as i64))
-                .filter(completion_date.is_null())
                 .load::<Todo>(&mut self.db.get().unwrap())
         } else {
             todos
                 .filter(channel_id.eq(channelid.0 as i64))
+                .filter(completion_date.is_null())
                 .load::<Todo>(&mut self.db.get().unwrap())
         };
 
@@ -122,7 +122,7 @@ impl TodoCommand {
         }
     }
 
-    fn add(&self, channelid: ChannelId, text: String) -> TodoResult {
+    fn add(&self, channelid: ChannelId, text: &String) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         if text.len() > 1024 {
@@ -158,11 +158,11 @@ impl TodoCommand {
         }
     }
 
-    fn delete(&self, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
+    fn delete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         let deleted: Result<String, diesel::result::Error> =
-            diesel::delete(todos.find(*todo_id as i32))
+            diesel::delete(todos.find(todo_id as i32))
                 .returning(todo)
                 .get_result(&mut self.db.get().unwrap());
 
@@ -179,13 +179,13 @@ impl TodoCommand {
         }
     }
 
-    fn complete(&self, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
+    fn complete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
 
         let completed: Result<String, diesel::result::Error> =
-            diesel::update(todos.find(*todo_id as i32))
+            diesel::update(todos.find(todo_id as i32))
                 .set(completion_date.eq(&time.to_string()))
                 .returning(todo)
                 .get_result(&mut self.db.get().unwrap());
@@ -203,11 +203,11 @@ impl TodoCommand {
         }
     }
 
-    fn uncomplete(&self, _channelid: ChannelId, todo_id: &i64) -> TodoResult {
+    fn uncomplete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
         let uncompleted: Result<String, diesel::result::Error> =
-            diesel::update(todos.find(*todo_id as i32))
+            diesel::update(todos.find(todo_id as i32))
                 .set(completion_date.eq::<Option<String>>(None))
                 .returning(todo)
                 .get_result(&mut self.db.get().unwrap());
@@ -328,7 +328,7 @@ impl Command for TodoCommand {
                 } else {
                     &false
                 };
-                self.list(channel, completed)
+                self.list(channel, *completed)
             }
             TODO_SUBCOMMAND_ADD => {
                 if let OptString(content) = args
@@ -339,7 +339,7 @@ impl Command for TodoCommand {
                     .as_ref()
                     .expect("Expected content")
                 {
-                    self.add(channel, String::from(content))
+                    self.add(channel, content)
                 } else {
                     Err(String::from("Couldn't parse argument."))
                 }
@@ -354,9 +354,9 @@ impl Command for TodoCommand {
                     .expect("Expected id")
                 {
                     match name {
-                        TODO_SUBCOMMAND_DELETE => self.delete(channel, id),
-                        TODO_SUBCOMMAND_COMPLETE => self.complete(channel, id),
-                        TODO_SUBCOMMAND_UNCOMPLETE => self.uncomplete(channel, id),
+                        TODO_SUBCOMMAND_DELETE => self.delete(channel, *id),
+                        TODO_SUBCOMMAND_COMPLETE => self.complete(channel, *id),
+                        TODO_SUBCOMMAND_UNCOMPLETE => self.uncomplete(channel, *id),
                         &_ => {
                             unreachable! {}
                         }

@@ -1,4 +1,4 @@
-use std::{error::Error, str::FromStr};
+use std::str::FromStr;
 
 use diesel::{
     prelude::*,
@@ -26,7 +26,7 @@ mod tasks;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
-fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
+fn setup_db(db_url: &String) -> Conn {
     let conn_man = ConnectionManager::<SqliteConnection>::new(db_url);
     let pool =
         Pool::new(conn_man).unwrap_or_else(|_| panic!("Error creating pool for: {}", &db_url));
@@ -36,7 +36,7 @@ fn setup_db(db_url: &String) -> Result<Conn, Box<dyn Error>> {
         Err(e) => error!("Database migrations error: {:?}", e),
     };
 
-    Ok(pool)
+    pool
 }
 
 fn get_intents() -> GatewayIntents {
@@ -66,7 +66,7 @@ async fn main() {
     let token = String::from(&settings.discord_token);
     let application_id = settings.application_id;
 
-    let conn = setup_db(&settings.database.url).expect("Error connecting to database");
+    let conn = setup_db(&settings.database.url);
     let secubot = Secubot::new(conn);
     let handler = Handler::new(secubot, settings);
     let intents = get_intents();

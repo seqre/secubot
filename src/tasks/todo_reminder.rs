@@ -39,16 +39,16 @@ impl Task for TodoReminderTask {
             .filter(completion_date.is_null())
             .load::<Todo>(&mut self.db.get().unwrap());
 
-        let channels: Vec<(ChannelId, u32)> = results
+        let channels: Vec<(ChannelId, usize)> = results
             .unwrap()
             .into_iter()
             .group_by(|td| td.channel_id)
             .into_iter()
-            .map(|(chnl, tds)| (ChannelId(chnl as u64), tds.count() as u32))
+            .map(|(chnl, tds)| (ChannelId(chnl as u64), tds.count()))
             .collect();
 
         for (chnl, count) in channels {
-            let _ = chnl
+            let _result = chnl
                 .send_message(&self.http, |message| {
                     message.embed(|embed| {
                         embed.description(format!("There are {} uncompleted TODOs here!", count));

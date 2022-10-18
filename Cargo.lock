@@ -1520,7 +1520,7 @@ dependencies = [
 
 [[package]]
 name = "secubot"
-version = "1.2.0"
+version = "1.2.2"
 dependencies = [
  "chrono",
  "config",

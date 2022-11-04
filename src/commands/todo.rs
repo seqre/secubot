@@ -380,14 +380,14 @@ impl Command for TodoCommand {
                         message.embed(|embed| match response_data {
                             TodoReturn::Text(text) => embed.description(text),
                             TodoReturn::Fields(fields) => {
-                                let mut new_fields: Vec<(u64, String, bool)> = fields
+                                let new_fields: Vec<(u64, String, bool)> = fields
                                     .into_iter()
                                     .map(|(x, y)| {
                                         let b = y.len() <= 25;
                                         (x, y, b)
                                     })
                                     .collect();
-                                //new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));
+                                // new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));
                                 embed.title("TODOs").fields(new_fields)
                             }
                         })

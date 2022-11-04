@@ -161,10 +161,11 @@ impl TodoCommand {
     fn delete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        let deleted: Result<String, diesel::result::Error> =
-            diesel::delete(todos.find(todo_id as i32))
-                .returning(todo)
-                .get_result(&mut self.db.get().unwrap());
+        let deleted: Result<String, diesel::result::Error> = diesel::delete(todos)
+            .filter(channel_id.eq(i64::from(_channelid)))
+            .filter(id.eq(todo_id as i32))
+            .returning(todo)
+            .get_result(&mut self.db.get().unwrap());
 
         match deleted {
             Ok(deleted) => Ok(TodoReturn::Text(
@@ -184,11 +185,12 @@ impl TodoCommand {
 
         let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
 
-        let completed: Result<String, diesel::result::Error> =
-            diesel::update(todos.find(todo_id as i32))
-                .set(completion_date.eq(&time.to_string()))
-                .returning(todo)
-                .get_result(&mut self.db.get().unwrap());
+        let completed: Result<String, diesel::result::Error> = diesel::update(todos)
+            .filter(channel_id.eq(i64::from(_channelid)))
+            .filter(id.eq(todo_id as i32))
+            .set(completion_date.eq(&time.to_string()))
+            .returning(todo)
+            .get_result(&mut self.db.get().unwrap());
 
         match completed {
             Ok(completed) => Ok(TodoReturn::Text(
@@ -206,11 +208,12 @@ impl TodoCommand {
     fn uncomplete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
         use crate::schema::todos::dsl::*;
 
-        let uncompleted: Result<String, diesel::result::Error> =
-            diesel::update(todos.find(todo_id as i32))
-                .set(completion_date.eq::<Option<String>>(None))
-                .returning(todo)
-                .get_result(&mut self.db.get().unwrap());
+        let uncompleted: Result<String, diesel::result::Error> = diesel::update(todos)
+            .filter(channel_id.eq(i64::from(_channelid)))
+            .filter(id.eq(todo_id as i32))
+            .set(completion_date.eq::<Option<String>>(None))
+            .returning(todo)
+            .get_result(&mut self.db.get().unwrap());
 
         match uncompleted {
             Ok(uncompleted) => Ok(TodoReturn::Text(

@@ -387,7 +387,7 @@ impl Command for TodoCommand {
                                         (x, y, b)
                                     })
                                     .collect();
-                                new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));
+                                //new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));
                                 embed.title("TODOs").fields(new_fields)
                             }
                         })

@@ -1,4 +1,3 @@
-#[allow(clippy::unused_self)]
 use std::str::FromStr;
 
 use diesel::{
@@ -38,8 +37,8 @@ fn setup_db(db_url: &String) -> Conn {
         Pool::new(conn_man).unwrap_or_else(|_| panic!("Error creating pool for: {}", &db_url));
 
     match &pool.get().unwrap().run_pending_migrations(MIGRATIONS) {
-        Ok(_) => info!("CtxDatabase migrations completed"),
-        Err(e) => error!("CtxDatabase migrations error: {:?}", e),
+        Ok(_) => info!("Database migrations completed"),
+        Err(e) => error!("Database migrations error: {:?}", e),
     };
 
     pool

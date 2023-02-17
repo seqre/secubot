@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{Context, Result};
 
 pub mod changelog;
 pub mod ping;

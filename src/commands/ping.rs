@@ -195,7 +195,7 @@ impl PingWorker {
                             .iter()
                             .map(|u| format!("<@!{}>", u.0))
                             .collect();
-                        channel.say(http, format!("./ping {}", usrs)).await;
+                        channel.say(http, format!("./ping {usrs}")).await;
                     }
                 }
             }
@@ -208,7 +208,7 @@ impl PingWorker {
 
     async fn handle_message(&mut self) {
         if let Ok(msg) = self.channel.try_recv() {
-            use self::PingWorkerMessage::*;
+            use self::PingWorkerMessage::{Commence, Remove, Stop};
 
             match msg {
                 Commence(http, channel_id, users) => {

@@ -17,12 +17,11 @@ pub async fn changelog(ctx: Context<'_>) -> Result<()> {
         .as_ref()
         .unwrap()
         .split("\r\n")
-        .into_iter()
         .map(|x| {
             if x.starts_with('#') {
-                format!("**{}**\n", x)
+                format!("**{x}**\n")
             } else {
-                format!("{}\n", x)
+                format!("{x}\n")
             }
         })
         .collect();

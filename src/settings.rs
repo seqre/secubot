@@ -39,7 +39,7 @@ impl Settings {
         let mode = env::var("SCBT_RUN_MODE").unwrap_or_else(|_| "dev".into());
         let config = Config::builder()
             .add_source(File::with_name("config/default"))
-            .add_source(File::with_name(&format!("config/{}", mode)))
+            .add_source(File::with_name(&format!("config/{mode}")))
             .add_source(File::with_name("config/commands"))
             .add_source(
                 glob("config/custom/*")

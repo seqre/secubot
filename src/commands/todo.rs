@@ -14,7 +14,10 @@ use diesel::{
 use itertools::Itertools;
 use poise::serenity_prelude::{ChannelId, CreateEmbed, MessageBuilder};
 
-use crate::{models::*, Conn, Context, Result};
+use crate::{
+    models::{NewTodo, Todo},
+    Conn, Context, Result,
+};
 
 type TodoEntry = (u64, String);
 
@@ -25,7 +28,7 @@ pub struct TodoData {
 
 impl TodoData {
     pub fn new(db: &Conn) -> Self {
-        use crate::schema::todos::dsl::*;
+        use crate::schema::todos::dsl::todos;
 
         let todo_list = todos.load::<Todo>(&mut db.get().unwrap()).unwrap();
         let iterators = todo_list
@@ -69,7 +72,7 @@ pub async fn list(
     #[flag]
     completed: bool,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{channel_id, completion_date, todos};
 
     // FIXME: looks bad, there needs to be smarter way
     let results = if completed {
@@ -107,7 +110,7 @@ pub async fn list(
 /// Add TODO entry
 #[poise::command(slash_command)]
 pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: String) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::todos;
 
     let data = if content.len() > 1024 {
         EmbedData::Text("Content can't have more than 1024 characters.".to_string())
@@ -147,7 +150,7 @@ pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: Stri
 /// Delete TODO entry
 #[poise::command(slash_command)]
 pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{channel_id, id, todo, todos};
 
     let deleted: QueryResult<String> = diesel::delete(todos)
         .filter(channel_id.eq(i64::from(ctx.channel_id())))
@@ -175,7 +178,7 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
 /// Complete TODO entry
 #[poise::command(slash_command)]
 pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{channel_id, completion_date, id, todo, todos};
 
     let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
 
@@ -206,7 +209,7 @@ pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64)
 /// Uncomplete TODO entry
 #[poise::command(slash_command)]
 pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{channel_id, completion_date, id, todo, todos};
 
     let uncompleted: QueryResult<String> = diesel::update(todos)
         .filter(channel_id.eq(i64::from(ctx.channel_id())))

@@ -15,10 +15,11 @@ exclude = ["/.github/", "/config/"]
 maintenance = { status = "experimental" }
 
 [dependencies]
+poise = { version = "0.5" }
 serenity = { version = "0.11", default-features = false, features = ["client", "cache", "gateway", "http", "model", "rustls_backend", "unstable_discord_api"] }
 tokio = { version = "1.20", features = ["full"] }
-diesel = { version = "2.0.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2", "chrono"] }
-diesel_migrations = { version = "2.0.0" }
+diesel = { version = "2.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2", "chrono"] }
+diesel_migrations = { version = "2.0" }
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = { version = "1.0" }
@@ -28,9 +29,10 @@ itertools = { version = "0.10" }
 config = { version = "0.13" }
 glob = { version = "0.3" }
 log = { version = "0.4", features = ["std", "serde"] }
-env_logger = { version = "0.9" }
+env_logger = { version = "0.10" }
 url_encoded_data = { version = "0.6", optional = true }
 octocrab = { version = "0.17" }
+anyhow = { version = "1.0" }
 
 [features]
 default = [] #"msg_content"]

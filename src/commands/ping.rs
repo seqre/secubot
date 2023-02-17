@@ -6,25 +6,8 @@ use std::{
 
 use lazy_static::lazy_static;
 use log::debug;
+use poise::serenity_prelude::{ChannelId, Http, UserId};
 use regex::Regex;
-use serenity::{
-    async_trait,
-    builder::CreateApplicationCommand,
-    client::Context,
-    http::client::Http,
-    model::{
-        application::{
-            command::CommandOptionType,
-            interaction::{
-                application_command::{
-                    ApplicationCommandInteraction, CommandDataOptionValue::String as OptString,
-                },
-                InteractionResponseType,
-            },
-        },
-        id::{ChannelId, UserId},
-    },
-};
 use tokio::{
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -34,17 +17,112 @@ use tokio::{
     time::sleep,
 };
 
-use crate::commands::{Command, CommandResult};
-
-const PING_COMMAND: &str = "ping";
-const PING_COMMAND_DESC: &str = "The Ping Cannon";
-const PING_SUBCOMMAND_COMMENCE: &str = "commence";
-const PING_SUBCOMMAND_REMOVE: &str = "remove";
-const PING_SUBCOMMAND_STOP: &str = "stop";
+use crate::{Context, Result};
 
 const PING_CHANNEL_BUFFER: usize = 15;
-
 const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
+
+#[derive(Debug)]
+pub struct PingData {
+    _worker: JoinHandle<()>,
+    channel: Sender<PingWorkerMessage>,
+}
+
+impl PingData {
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel::<PingWorkerMessage>(PING_CHANNEL_BUFFER);
+        let mut worker = PingWorker::new(rx);
+        let handle = tokio::spawn(async move {
+            worker.work().await;
+        });
+        Self {
+            _worker: handle,
+            channel: tx,
+        }
+    }
+}
+
+#[poise::command(slash_command, subcommands("commence", "remove", "stop"))]
+pub async fn ping(_ctx: Context<'_>) -> Result<()> {
+    Ok(())
+}
+
+/// Commence the Ping Cannon
+#[poise::command(slash_command)]
+pub async fn commence(
+    ctx: Context<'_>,
+    // TODO: refactor to work with Vec<Member>
+    #[description = "Users to ping with the Ping Cannon"] users: String,
+) -> Result<()> {
+    let users = input_to_users(&users);
+    match ctx
+        .data()
+        .ping_data
+        .channel
+        .send(PingWorkerMessage::Commence(
+            ctx.serenity_context().http.clone(),
+            ctx.channel_id(),
+            users,
+        ))
+        .await
+    {
+        Ok(()) => _ = ctx.say("LOADING PING CANNON....").await,
+        Err(e) => debug!("Error while sending Commence message: {:?}", e),
+    };
+    Ok(())
+}
+
+/// Remove users from running cannon
+#[poise::command(slash_command)]
+pub async fn remove(
+    ctx: Context<'_>,
+    #[description = "Users to remove from the Ping Cannon"] users: String,
+) -> Result<()> {
+    let users = input_to_users(&users);
+    match ctx
+        .data()
+        .ping_data
+        .channel
+        .send(PingWorkerMessage::Remove(ctx.channel_id(), users))
+        .await
+    {
+        Ok(()) => _ = ctx.say("Users removed from the targets.").await,
+        Err(e) => debug!("Error while sending Remove message: {:?}", e),
+    };
+
+    Ok(())
+}
+
+/// Remove users from running cannon
+#[poise::command(slash_command)]
+pub async fn stop(ctx: Context<'_>) -> Result<()> {
+    match ctx
+        .data()
+        .ping_data
+        .channel
+        .send(PingWorkerMessage::Stop(ctx.channel_id()))
+        .await
+    {
+        Ok(()) => _ = ctx.say("The Ping Canon has stopped.").await,
+        Err(e) => debug!("Error while sending Stop message: {:?}", e),
+    };
+
+    Ok(())
+}
+
+fn input_to_users(input: &str) -> HashSet<UserId> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"<@(\d+)>").unwrap();
+    }
+
+    RE.captures_iter(input)
+        .map(|cap| {
+            let id = &cap[1];
+            let id: u64 = id.parse().unwrap();
+            UserId(id)
+        })
+        .collect()
+}
 
 #[derive(Debug)]
 struct PingTask {
@@ -60,6 +138,13 @@ impl PingTask {
     pub fn is_done(&self) -> bool {
         Instant::now() > self.end_date
     }
+}
+
+#[derive(Debug)]
+enum PingWorkerMessage {
+    Commence(Arc<Http>, ChannelId, HashSet<UserId>),
+    Remove(ChannelId, HashSet<UserId>),
+    Stop(ChannelId),
 }
 
 #[derive(Debug)]
@@ -108,7 +193,7 @@ impl PingWorker {
                         let usrs: String = ping_task
                             .users
                             .iter()
-                            .map(|u| format!("<@!{}>", u))
+                            .map(|u| format!("<@!{}>", u.0))
                             .collect();
                         channel.say(http, format!("./ping {}", usrs)).await;
                     }
@@ -162,188 +247,5 @@ impl PingWorker {
                 }
             }
         }
-    }
-}
-
-#[derive(Debug)]
-enum PingWorkerMessage {
-    Commence(Arc<Http>, ChannelId, HashSet<UserId>),
-    Remove(ChannelId, HashSet<UserId>),
-    Stop(ChannelId),
-}
-
-#[derive(Debug)]
-pub struct PingCommand {
-    _worker: JoinHandle<()>,
-    channel: Sender<PingWorkerMessage>,
-}
-
-impl PingCommand {
-    pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel::<PingWorkerMessage>(PING_CHANNEL_BUFFER);
-        let mut worker = PingWorker::new(rx);
-        let handle = tokio::spawn(async move {
-            worker.work().await;
-        });
-        Self {
-            _worker: handle,
-            channel: tx,
-        }
-    }
-
-    async fn commence(&self, http: Arc<Http>, channel_id: ChannelId, users: HashSet<UserId>) {
-        if let Err(e) = self
-            .channel
-            .send(PingWorkerMessage::Commence(http.clone(), channel_id, users))
-            .await
-        {
-            debug!("Error while sending Commence message: {:?}", e);
-        };
-    }
-
-    async fn remove(&self, channel_id: &ChannelId, users: HashSet<UserId>) {
-        if let Err(e) = self
-            .channel
-            .send(PingWorkerMessage::Remove(*channel_id, users))
-            .await
-        {
-            debug!("Error while sending Remove message: {:?}", e);
-        };
-    }
-
-    async fn stop(&self, channel_id: &ChannelId) {
-        if let Err(e) = self
-            .channel
-            .send(PingWorkerMessage::Stop(*channel_id))
-            .await
-        {
-            debug!("Error while sending Stop message: {:?}", e);
-        };
-    }
-
-    fn input_to_users(input: &str) -> HashSet<UserId> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"<@(\d+)>").unwrap();
-        }
-
-        RE.captures_iter(input)
-            .map(|cap| {
-                let id = &cap[1];
-                let id: u64 = id.parse().unwrap();
-                UserId(id)
-            })
-            .collect()
-    }
-}
-
-#[async_trait]
-impl Command for PingCommand {
-    fn get_name(&self) -> &'static str {
-        PING_COMMAND
-    }
-
-    fn add_application_command(&self, command: &mut CreateApplicationCommand) {
-        command
-            .description(PING_COMMAND_DESC)
-            .create_option(|option| {
-                option
-                    .name(PING_SUBCOMMAND_COMMENCE)
-                    .description("Commence the Ping Cannon")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("users")
-                            .description("users to ping")
-                            .kind(CommandOptionType::String)
-                            .required(true)
-                    })
-            })
-            .create_option(|option| {
-                option
-                    .name(PING_SUBCOMMAND_REMOVE)
-                    .description("Remove users from running cannon")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("users")
-                            .description("users to remove")
-                            .kind(CommandOptionType::String)
-                            .required(true)
-                    })
-            })
-            .create_option(|option| {
-                option
-                    .name(PING_SUBCOMMAND_STOP)
-                    .description("Stop the Ping Cannon")
-                    .kind(CommandOptionType::SubCommand)
-            });
-    }
-
-    async fn handle(
-        &self,
-        ctx: &Context,
-        command: &ApplicationCommandInteraction,
-    ) -> CommandResult {
-        let channel = command.channel_id;
-        let subcommand = command
-            .data
-            .options
-            .iter()
-            .find(|x| x.kind == CommandOptionType::SubCommand)
-            .unwrap();
-        let subcommand_name = subcommand.name.as_str();
-        let args = &subcommand.options;
-
-        let response_text = match subcommand_name {
-            PING_SUBCOMMAND_STOP => {
-                self.stop(&channel).await;
-                "The Ping Canon has stopped."
-            }
-            name => {
-                if let OptString(users) = args
-                    .iter()
-                    .find(|x| x.name == "users")
-                    .expect("Expected users")
-                    .resolved
-                    .as_ref()
-                    .expect("Expected users")
-                {
-                    let users = PingCommand::input_to_users(users);
-                    if users.is_empty() {
-                        "No valid users found, aborting."
-                    } else {
-                        match name {
-                            PING_SUBCOMMAND_COMMENCE => {
-                                let http = ctx.http.clone();
-                                self.commence(http, channel, users).await;
-                                "LOADING PING CANNON...."
-                            }
-                            PING_SUBCOMMAND_REMOVE => {
-                                self.remove(&channel, users).await;
-                                "Users removed from the targets."
-                            }
-                            &_ => {
-                                unreachable! {}
-                            }
-                        }
-                    }
-                } else {
-                    "Bad arguments... how?"
-                }
-            }
-        };
-
-        command
-            .create_interaction_response(&ctx.http, |response| {
-                response
-                    .kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| {
-                        message.content(response_text);
-                        message
-                    })
-            })
-            .await?;
-
-        Ok(())
     }
 }

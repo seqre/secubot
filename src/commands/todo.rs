@@ -7,65 +7,27 @@ use std::{
 };
 
 use chrono::{NaiveDateTime, Utc};
-use diesel::{prelude::*, result::Error::NotFound};
+use diesel::{
+    prelude::*,
+    result::{Error::NotFound, QueryResult},
+};
 use itertools::Itertools;
-use serenity::{
-    async_trait,
-    builder::CreateApplicationCommand,
-    client::Context,
-    model::{
-        application::{
-            command::CommandOptionType,
-            interaction::{
-                application_command::{
-                    ApplicationCommandInteraction,
-                    CommandDataOptionValue::{
-                        Boolean as OptBoolean, Integer as OptInteger, String as OptString,
-                    },
-                },
-                InteractionResponseType,
-            },
-        },
-        id::ChannelId,
-    },
-    utils::MessageBuilder,
-};
+use poise::serenity_prelude::{ChannelId, CreateEmbed, MessageBuilder};
 
-use crate::{
-    commands::{Command, CommandResult},
-    models::*,
-    secubot::{Conn, Secubot},
-};
-
-const TODO_COMMAND: &str = "todo";
-const TODO_COMMAND_DESC: &str = "Todo";
-const TODO_SUBCOMMAND_LIST: &str = "list";
-const TODO_SUBCOMMAND_ADD: &str = "add";
-const TODO_SUBCOMMAND_DELETE: &str = "delete";
-const TODO_SUBCOMMAND_COMPLETE: &str = "complete";
-const TODO_SUBCOMMAND_UNCOMPLETE: &str = "uncomplete";
+use crate::{models::*, Conn, Context, Result};
 
 type TodoEntry = (u64, String);
 
 #[derive(Debug)]
-enum TodoReturn {
-    Text(String),
-    Fields(Vec<TodoEntry>),
-}
-
-type TodoResult = Result<TodoReturn, String>;
-
-#[derive(Debug)]
-pub struct TodoCommand {
+pub struct TodoData {
     iterators: Mutex<HashMap<ChannelId, AtomicI32>>,
-    db: Conn,
 }
 
-impl TodoCommand {
-    pub fn new(secubot: &Secubot) -> Self {
+impl TodoData {
+    pub fn new(db: &Conn) -> Self {
         use crate::schema::todos::dsl::*;
 
-        let todo_list = todos.load::<Todo>(&mut secubot.db.get().unwrap()).unwrap();
+        let todo_list = todos.load::<Todo>(&mut db.get().unwrap()).unwrap();
         let iterators = todo_list
             .into_iter()
             .group_by(|td| td.channel_id)
@@ -78,323 +40,221 @@ impl TodoCommand {
 
         Self {
             iterators: Mutex::new(iterators),
-            db: secubot.db.clone(),
         }
     }
 
     fn get_id(&self, channelid: ChannelId) -> i32 {
-        let mut itr = self.iterators.lock().unwrap();
+        let itr = &mut self.iterators.lock().unwrap();
         let aint = itr.entry(channelid).or_insert_with(|| AtomicI32::new(0));
         aint.fetch_add(1, Ordering::SeqCst)
     }
-
-    fn list(&self, channelid: ChannelId, completed: bool) -> TodoResult {
-        use crate::schema::todos::dsl::*;
-
-        // FIXME: looks bad, there needs to be smarter way
-        let results = if completed {
-            todos
-                .filter(channel_id.eq(channelid.0 as i64))
-                .load::<Todo>(&mut self.db.get().unwrap())
-        } else {
-            todos
-                .filter(channel_id.eq(channelid.0 as i64))
-                .filter(completion_date.is_null())
-                .load::<Todo>(&mut self.db.get().unwrap())
-        };
-
-        match results {
-            Ok(todo_list) => {
-                let output: Vec<TodoEntry> = todo_list
-                    .into_iter()
-                    .map(|t| (t.id as u64, t.todo))
-                    .collect();
-                if output.is_empty() {
-                    Ok(TodoReturn::Text(String::from(
-                        "There are no incompleted TODOs in this channel.",
-                    )))
-                } else {
-                    Ok(TodoReturn::Fields(output))
-                }
-            }
-            Err(NotFound) => Err(String::from("Not found.")),
-            Err(_) => Err(String::from("Listing TODOs failed.")),
-        }
-    }
-
-    fn add(&self, channelid: ChannelId, text: &String) -> TodoResult {
-        use crate::schema::todos::dsl::*;
-
-        if text.len() > 1024 {
-            Err(String::from(
-                "Content can't have more than 1024 characters.",
-            ))
-        } else {
-            let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
-            let new_id = self.get_id(channelid);
-            let text = text.replace('@', "@\u{200B}").replace('`', "'");
-            let new_todo = NewTodo {
-                channel_id: &(channelid.0 as i64),
-                id: &new_id,
-                todo: &text,
-                creation_date: &time.to_string(),
-            };
-
-            let result = diesel::insert_into(todos)
-                .values(&new_todo)
-                .execute(&mut self.db.get().unwrap());
-
-            match result {
-                Ok(_) => Ok(TodoReturn::Text(
-                    MessageBuilder::new()
-                        .push("TODO (")
-                        .push_mono_safe(&text)
-                        .push(") added.")
-                        .build(),
-                )),
-                Err(NotFound) => Ok(TodoReturn::Text(String::from("Not found."))),
-                Err(_) => Ok(TodoReturn::Text(String::from("Adding TODO failed."))),
-            }
-        }
-    }
-
-    fn delete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
-        use crate::schema::todos::dsl::*;
-
-        let deleted: Result<String, diesel::result::Error> = diesel::delete(todos)
-            .filter(channel_id.eq(i64::from(_channelid)))
-            .filter(id.eq(todo_id as i32))
-            .returning(todo)
-            .get_result(&mut self.db.get().unwrap());
-
-        match deleted {
-            Ok(deleted) => Ok(TodoReturn::Text(
-                MessageBuilder::new()
-                    .push("TODO (")
-                    .push_mono_safe(&deleted)
-                    .push(") deleted.")
-                    .build(),
-            )),
-            Err(NotFound) => Ok(TodoReturn::Text(String::from("Not found."))),
-            Err(_) => Ok(TodoReturn::Text(String::from("Deleting TODO failed."))),
-        }
-    }
-
-    fn complete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
-        use crate::schema::todos::dsl::*;
-
-        let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
-
-        let completed: Result<String, diesel::result::Error> = diesel::update(todos)
-            .filter(channel_id.eq(i64::from(_channelid)))
-            .filter(id.eq(todo_id as i32))
-            .set(completion_date.eq(&time.to_string()))
-            .returning(todo)
-            .get_result(&mut self.db.get().unwrap());
-
-        match completed {
-            Ok(completed) => Ok(TodoReturn::Text(
-                MessageBuilder::new()
-                    .push("TODO (")
-                    .push_mono_safe(&completed)
-                    .push(") completed.")
-                    .build(),
-            )),
-            Err(NotFound) => Ok(TodoReturn::Text(String::from("Not found."))),
-            Err(_) => Ok(TodoReturn::Text(String::from("Completing TODO failed."))),
-        }
-    }
-
-    fn uncomplete(&self, _channelid: ChannelId, todo_id: i64) -> TodoResult {
-        use crate::schema::todos::dsl::*;
-
-        let uncompleted: Result<String, diesel::result::Error> = diesel::update(todos)
-            .filter(channel_id.eq(i64::from(_channelid)))
-            .filter(id.eq(todo_id as i32))
-            .set(completion_date.eq::<Option<String>>(None))
-            .returning(todo)
-            .get_result(&mut self.db.get().unwrap());
-
-        match uncompleted {
-            Ok(uncompleted) => Ok(TodoReturn::Text(
-                MessageBuilder::new()
-                    .push("TODO (")
-                    .push_mono_safe(&uncompleted)
-                    .push(") uncompleted.")
-                    .build(),
-            )),
-            Err(NotFound) => Ok(TodoReturn::Text(String::from("Not found."))),
-            Err(_) => Ok(TodoReturn::Text(String::from("Uncompleting TODO failed."))),
-        }
-    }
 }
 
-#[async_trait]
-impl Command for TodoCommand {
-    fn get_name(&self) -> &'static str {
-        TODO_COMMAND
-    }
+#[poise::command(
+    slash_command,
+    subcommands("list", "add", "complete", "uncomplete", "delete")
+)]
+pub async fn todo(_ctx: Context<'_>) -> Result<()> {
+    Ok(())
+}
 
-    fn add_application_command(&self, command: &mut CreateApplicationCommand) {
-        command
-            .description(TODO_COMMAND_DESC)
-            .create_option(|option| {
-                option
-                    .name(TODO_SUBCOMMAND_LIST)
-                    .description("List TODO entries")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("completed")
-                            .description("Show completed TODOs")
-                            .kind(CommandOptionType::Boolean)
-                            .required(false)
-                    })
-            })
-            .create_option(|option| {
-                option
-                    .name(TODO_SUBCOMMAND_ADD)
-                    .description("Add TODO entry")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("content")
-                            .description("TODO content")
-                            .kind(CommandOptionType::String)
-                            .required(true)
-                    })
-            })
-            .create_option(|option| {
-                option
-                    .name(TODO_SUBCOMMAND_COMPLETE)
-                    .description("Complete TODO entry")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("id")
-                            .description("TODO id")
-                            .kind(CommandOptionType::Integer)
-                            .required(true)
-                    })
-            })
-            .create_option(|option| {
-                option
-                    .name(TODO_SUBCOMMAND_UNCOMPLETE)
-                    .description("Uncomplete TODO entry")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("id")
-                            .description("TODO id")
-                            .kind(CommandOptionType::Integer)
-                            .required(true)
-                    })
-            })
-            .create_option(|option| {
-                option
-                    .name(TODO_SUBCOMMAND_DELETE)
-                    .description("Delete TODO entry")
-                    .kind(CommandOptionType::SubCommand)
-                    .create_sub_option(|subopt| {
-                        subopt
-                            .name("id")
-                            .description("TODO id")
-                            .kind(CommandOptionType::Integer)
-                            .required(true)
-                    })
-            });
-    }
+// TODO: division of responsibilites, extract database manipulations to other
+// functions
 
-    async fn handle(
-        &self,
-        ctx: &Context,
-        command: &ApplicationCommandInteraction,
-    ) -> CommandResult {
-        let channel = command.channel_id;
-        let subcommand = command
-            .data
-            .options
-            .iter()
-            .find(|x| x.kind == CommandOptionType::SubCommand)
-            .unwrap();
-        let subcommand_name = subcommand.name.as_str();
-        let args = &subcommand.options;
+/// List TODO entries
+#[poise::command(slash_command)]
+pub async fn list(
+    ctx: Context<'_>,
+    #[description = "Show completed TODOs"]
+    #[flag]
+    completed: bool,
+) -> Result<()> {
+    use crate::schema::todos::dsl::*;
 
-        let result = match subcommand_name {
-            TODO_SUBCOMMAND_LIST => {
-                let completed = if let Some(opt) = args.iter().find(|x| x.name == "completed") {
-                    if let OptBoolean(b) = opt.resolved.as_ref().unwrap() {
-                        b
-                    } else {
-                        &false
-                    }
-                } else {
-                    &false
-                };
-                self.list(channel, *completed)
+    // FIXME: looks bad, there needs to be smarter way
+    let results = if completed {
+        todos
+            .filter(channel_id.eq(i64::from(ctx.channel_id())))
+            .load::<Todo>(&mut ctx.data().db.get().unwrap())
+    } else {
+        todos
+            .filter(channel_id.eq(i64::from(ctx.channel_id())))
+            .filter(completion_date.is_null())
+            .load::<Todo>(&mut ctx.data().db.get().unwrap())
+    };
+
+    let data = match results {
+        Ok(todo_list) => {
+            let output: Vec<TodoEntry> = todo_list
+                .into_iter()
+                .map(|t| (t.id as u64, t.todo))
+                .collect();
+            if output.is_empty() {
+                EmbedData::Text("There are no incompleted TODOs in this channel.".to_string())
+            } else {
+                EmbedData::Fields(output)
             }
-            TODO_SUBCOMMAND_ADD => {
-                if let OptString(content) = args
-                    .iter()
-                    .find(|x| x.name == "content")
-                    .expect("Expected content")
-                    .resolved
-                    .as_ref()
-                    .expect("Expected content")
-                {
-                    self.add(channel, content)
-                } else {
-                    Err(String::from("Couldn't parse argument."))
-                }
-            }
-            name => {
-                if let OptInteger(id) = args
-                    .iter()
-                    .find(|x| x.name == "id")
-                    .expect("Expected id")
-                    .resolved
-                    .as_ref()
-                    .expect("Expected id")
-                {
-                    match name {
-                        TODO_SUBCOMMAND_DELETE => self.delete(channel, *id),
-                        TODO_SUBCOMMAND_COMPLETE => self.complete(channel, *id),
-                        TODO_SUBCOMMAND_UNCOMPLETE => self.uncomplete(channel, *id),
-                        &_ => {
-                            unreachable! {}
-                        }
-                    }
-                } else {
-                    Err(String::from("Couldn't parse argument."))
-                }
-            }
+        }
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Listing TODOs failed.".to_string()),
+    };
+
+    respond(ctx, data).await;
+
+    Ok(())
+}
+
+/// Add TODO entry
+#[poise::command(slash_command)]
+pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: String) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let data = if content.len() > 1024 {
+        EmbedData::Text("Content can't have more than 1024 characters.".to_string())
+    } else {
+        let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+        let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
+        let text = content.replace('@', "@\u{200B}").replace('`', "'");
+        let new_todo = NewTodo {
+            channel_id: &(i64::from(ctx.channel_id())),
+            id: &new_id,
+            todo: &text,
+            creation_date: &time.to_string(),
         };
 
-        let response_data = result.unwrap_or_else(|e| TodoReturn::Text(format!("ERROR: {}", e)));
+        let result = diesel::insert_into(todos)
+            .values(&new_todo)
+            .execute(&mut ctx.data().db.get().unwrap());
 
-        command
-            .create_interaction_response(&ctx.http, |response| {
-                response
-                    .kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| {
-                        message.embed(|embed| match response_data {
-                            TodoReturn::Text(text) => embed.description(text),
-                            TodoReturn::Fields(fields) => {
-                                let new_fields: Vec<(u64, String, bool)> = fields
-                                    .into_iter()
-                                    .map(|(x, y)| {
-                                        let b = y.len() <= 25;
-                                        (x, y, b)
-                                    })
-                                    .collect();
-                                // new_fields.sort_by(|(_, _, x), (_, _, y)| y.cmp(x));
-                                embed.title("TODOs").fields(new_fields)
-                            }
-                        })
-                    })
-            })
-            .await?;
+        match result {
+            Ok(_) => EmbedData::Text(
+                MessageBuilder::new()
+                    .push("TODO (")
+                    .push_mono_safe(&text)
+                    .push(") added.")
+                    .build(),
+            ),
+            Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+            Err(_) => EmbedData::Text("Adding TODO failed.".to_string()),
+        }
+    };
 
-        Ok(())
+    respond(ctx, data).await;
+
+    Ok(())
+}
+
+/// Delete TODO entry
+#[poise::command(slash_command)]
+pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let deleted: QueryResult<String> = diesel::delete(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match deleted {
+        Ok(deleted) => EmbedData::Text(
+            MessageBuilder::new()
+                .push("TODO (")
+                .push_mono_safe(&deleted)
+                .push(") deleted.")
+                .build(),
+        ),
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Deleting TODO failed.".to_string()),
+    };
+
+    respond(ctx, data).await;
+
+    Ok(())
+}
+
+/// Complete TODO entry
+#[poise::command(slash_command)]
+pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+
+    let completed: QueryResult<String> = diesel::update(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .set(completion_date.eq(&time.to_string()))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match completed {
+        Ok(completed) => EmbedData::Text(
+            MessageBuilder::new()
+                .push("TODO (")
+                .push_mono_safe(&completed)
+                .push(") completed.")
+                .build(),
+        ),
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Completing TODO failed.".to_string()),
+    };
+
+    respond(ctx, data).await;
+
+    Ok(())
+}
+
+/// Uncomplete TODO entry
+#[poise::command(slash_command)]
+pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let uncompleted: QueryResult<String> = diesel::update(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .set(completion_date.eq::<Option<String>>(None))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match uncompleted {
+        Ok(uncompleted) => EmbedData::Text(
+            MessageBuilder::new()
+                .push("TODO (")
+                .push_mono_safe(&uncompleted)
+                .push(") uncompleted.")
+                .build(),
+        ),
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Uncompleting TODO failed.".to_string()),
+    };
+
+    respond(ctx, data).await;
+
+    Ok(())
+}
+
+enum EmbedData {
+    Text(String),
+    Fields(Vec<TodoEntry>),
+}
+
+async fn respond(ctx: Context<'_>, data: EmbedData) {
+    _ = ctx
+        .send(|reply| reply.embed(|embed| create_embed(embed, data)))
+        .await;
+}
+
+fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed {
+    match data {
+        EmbedData::Text(text) => builder.description(text),
+        EmbedData::Fields(fields) => {
+            let new_fields: Vec<(u64, String, bool)> = fields
+                .into_iter()
+                .map(|(x, y)| {
+                    let b = y.len() <= 25;
+                    (x, y, b)
+                })
+                .collect();
+            builder.title("TODOs").fields(new_fields)
+        }
     }
 }

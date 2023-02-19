@@ -3,7 +3,7 @@ name: Rust CI
 on:
   push:
     tags:
-      - 'v1.*'
+      - 'v*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -49,6 +49,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
+    needs: ['build']
     steps:
       - name: Checkout source
         uses: actions/checkout@v3

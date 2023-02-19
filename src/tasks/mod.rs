@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serenity::{async_trait, http::client::Http};
 use tokio::time::{sleep, Duration};
 
-use crate::{secubot::Secubot, tasks::todo_reminder::TodoReminderTask};
+use crate::{ctx_data::CtxData, tasks::todo_reminder::TodoReminderTask};
 
 mod todo_reminder;
 
@@ -13,27 +13,21 @@ pub trait Task: Send + Sync {
     async fn work(&self);
 }
 
-pub struct Tasks;
+// FIXME: the whole implementation works, but it less than ideal
 
-impl Tasks {
-    // FIXME: the whole implementation works, but it less than ideal
-    pub fn new() -> Self {
-        Self {}
-    }
+fn get_tasks(ctx_data: &CtxData, http: Arc<Http>) -> Vec<Box<dyn Task>> {
+    let tasks: Vec<Box<dyn Task>> =
+        vec![Box::new(TodoReminderTask::new(ctx_data.db.clone(), http))];
+    tasks
+}
 
-    fn get_tasks(secubot: &Secubot, http: Arc<Http>) -> Vec<Box<dyn Task>> {
-        let tasks: Vec<Box<dyn Task>> = vec![Box::new(TodoReminderTask::new(secubot, http))];
-        tasks
-    }
-
-    pub fn start_tasks(&self, secubot: &Secubot, http: Arc<Http>) {
-        for task in Tasks::get_tasks(secubot, http) {
-            tokio::task::spawn(async move {
-                loop {
-                    task.work().await;
-                    sleep(task.get_interval()).await;
-                }
-            });
-        }
+pub fn start_tasks(ctx_data: &CtxData, http: Arc<Http>) {
+    for task in get_tasks(ctx_data, http) {
+        tokio::task::spawn(async move {
+            loop {
+                task.work().await;
+                sleep(task.get_interval()).await;
+            }
+        });
     }
 }

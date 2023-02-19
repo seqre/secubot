@@ -51,7 +51,7 @@ pub async fn event_handler<'a>(
                     gather_options(&mut buf, &data.options);
                     buf
                 } else {
-                    "".to_string()
+                    String::new()
                 };
 
                 debug!(

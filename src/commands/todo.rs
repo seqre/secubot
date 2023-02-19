@@ -94,7 +94,7 @@ pub async fn list(
     completed: bool,
     #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
 
     let mut query = todos
         .into_boxed()
@@ -151,7 +151,7 @@ pub async fn add(
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let text = content.replace('@', "@\u{200B}").replace('`', "'");
         let nickname = match &assignee {
-            Some(m) => get_member_nickname(&m),
+            Some(m) => get_member_nickname(m),
             None => "no one".to_string(),
         };
         let assignee = assignee.map(|m| m.user.id.0 as i64);
@@ -280,10 +280,10 @@ pub async fn assign(
     #[description = "TODO id"] todo_id: i64,
     #[description = "TODO new assignee"] new_assignee: Option<Member>,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{assignee, channel_id, id, todo, todos};
 
     let nickname = match &new_assignee {
-        Some(m) => get_member_nickname(&m),
+        Some(m) => get_member_nickname(m),
         None => "no one".to_string(),
     };
     let new_assignee = new_assignee.map(|m| m.user.id.0 as i64);
@@ -341,7 +341,7 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
                     let inline = entry.text.len() <= 25;
                     let mut name = format!("[{}]", entry.id);
                     if let Some(nick) = entry.assignee {
-                        name = format!("{} - {}", name, nick);
+                        name = format!("{name} - {nick}");
                     };
                     (name, entry.text, inline)
                 })

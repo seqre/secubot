@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, info};
 use poise::{serenity_prelude as serenity, Event, Framework, FrameworkContext};
 
 use crate::{ctx_data::CtxData, settings::Settings, tasks, Error, Result};
@@ -21,12 +21,42 @@ pub async fn on_error(error: poise::FrameworkError<'_, CtxData, Error>) {
 }
 
 pub async fn event_handler<'a>(
-    _ctx: &'a serenity::Context,
+    ctx: &'a serenity::Context,
     event: &'a Event<'_>,
     _framework_context: FrameworkContext<'a, CtxData, Error>,
     _ctx_data: &'a CtxData,
 ) -> Result<()> {
     debug!("Got an event in event handler: {:?}", event.name());
+
+    // TODO: use message for URLs?
+    match event {
+        Event::Ready { data_about_bot } => info!("{} is connected!", data_about_bot.user.name),
+
+        #[allow(unused_variables)]
+        Event::MessageDelete {
+            channel_id,
+            deleted_message_id,
+            guild_id,
+        } => {
+            if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
+                debug!("Error while sending <deleted>: {:?}", e);
+            };
+        }
+
+        #[allow(unused_variables)]
+        Event::MessageDeleteBulk {
+            channel_id,
+            multiple_deleted_messages_ids,
+            guild_id,
+        } => {
+            let text = format!("<{}x deleted>", multiple_deleted_messages_ids.len());
+            if let Err(e) = channel_id.say(&ctx, &text).await {
+                debug!("Error while sending {}: {:?}", text, e);
+            };
+        }
+
+        _ => (),
+    };
     Ok(())
 }
 

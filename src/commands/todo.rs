@@ -115,7 +115,7 @@ pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: Stri
     let data = if content.len() > 1024 {
         EmbedData::Text("Content can't have more than 1024 characters.".to_string())
     } else {
-        let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+        let time = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let text = content.replace('@', "@\u{200B}").replace('`', "'");
         let new_todo = NewTodo {
@@ -180,7 +180,7 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
 pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
     use crate::schema::todos::dsl::{channel_id, completion_date, id, todo, todos};
 
-    let time = NaiveDateTime::from_timestamp(Utc::now().timestamp(), 0);
+    let time = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
 
     let completed: QueryResult<String> = diesel::update(todos)
         .filter(channel_id.eq(i64::from(ctx.channel_id())))

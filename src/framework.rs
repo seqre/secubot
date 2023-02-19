@@ -14,7 +14,7 @@ pub async fn on_error(error: poise::FrameworkError<'_, CtxData, Error>) {
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
-                debug!("Error while handling error: {}", e)
+                debug!("Error while handling error: {}", e);
             }
         }
     }

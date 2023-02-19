@@ -16,12 +16,17 @@ use crate::{
 
 // TODO:
 // mod events;
+
+#[allow(clippy::module_name_repetitions)]
 mod commands;
+
 mod ctx_data;
 mod framework;
 mod models;
 mod schema;
 mod settings;
+
+#[allow(clippy::module_name_repetitions)]
 mod tasks;
 
 type Result<T> = anyhow::Result<T>;

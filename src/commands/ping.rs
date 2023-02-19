@@ -42,6 +42,7 @@ impl PingData {
     }
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(slash_command, subcommands("commence", "remove", "stop"))]
 pub async fn ping(_ctx: Context<'_>) -> Result<()> {
     Ok(())
@@ -211,29 +212,29 @@ impl PingWorker {
             use self::PingWorkerMessage::{Commence, Remove, Stop};
 
             match msg {
-                Commence(http, channel_id, users) => {
+                Commence(http, channel_id, new_users) => {
                     self.http = Some(http);
 
                     if let Some(ping_task) = self.pings.get_mut(&channel_id) {
                         let mut ping_task = ping_task.lock().await;
-                        let usrs = &mut ping_task.users;
-                        usrs.extend(users);
+                        let users = &mut ping_task.users;
+                        users.extend(new_users);
                     } else {
                         self.pings.insert(
                             channel_id,
-                            Mutex::new(PingTask::new(Instant::now() + PING_TIMEOUT, users)),
+                            Mutex::new(PingTask::new(Instant::now() + PING_TIMEOUT, new_users)),
                         );
                     }
                 }
-                Remove(channel_id, users) => {
+                Remove(channel_id, new_users) => {
                     let mut remove = false;
                     if let Some(ping_task) = self.pings.get_mut(&channel_id) {
                         let mut ping_task = ping_task.lock().await;
-                        let usrs = &mut ping_task.users;
-                        for usr in users {
-                            usrs.remove(&usr);
+                        let users = &mut ping_task.users;
+                        for usr in new_users {
+                            users.remove(&usr);
                         }
-                        if usrs.is_empty() {
+                        if users.is_empty() {
                             remove = true;
                         }
                     }

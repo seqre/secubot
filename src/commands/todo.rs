@@ -53,6 +53,7 @@ impl TodoData {
     }
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
     subcommands("list", "add", "complete", "uncomplete", "delete")

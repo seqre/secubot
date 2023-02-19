@@ -5,7 +5,7 @@ use itertools::Itertools;
 use serenity::{async_trait, http::client::Http, model::id::ChannelId};
 use tokio::time::Duration;
 
-use crate::{models::*, tasks::Task, Conn};
+use crate::{models::Todo, tasks::Task, Conn};
 
 pub struct TodoReminderTask {
     db: Conn,
@@ -26,7 +26,7 @@ impl Task for TodoReminderTask {
     }
 
     async fn work(&self) {
-        use crate::schema::todos::dsl::*;
+        use crate::schema::todos::dsl::{completion_date, todos};
 
         let results = todos
             .filter(completion_date.is_null())
@@ -45,7 +45,7 @@ impl Task for TodoReminderTask {
                 .send_message(&self.http, |message| {
                     message.embed(|embed| {
                         embed.title("TODOs reminder");
-                        embed.description(format!("There are {} uncompleted TODOs here!", count));
+                        embed.description(format!("There are {count} uncompleted TODOs here!"));
                         embed
                     })
                 })

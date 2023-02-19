@@ -4,11 +4,12 @@ use crate::schema::todos;
 
 #[derive(Queryable, Debug)]
 pub struct Todo {
-    pub id: i32,
     pub channel_id: i64,
+    pub id: i32,
     pub todo: String,
     pub creation_date: String,
     pub completion_date: Option<String>,
+    pub assignee: Option<i64>,
 }
 
 #[derive(Insertable)]
@@ -18,4 +19,5 @@ pub struct NewTodo<'a> {
     pub id: &'a i32,
     pub todo: &'a str,
     pub creation_date: &'a str,
+    pub assignee: Option<i64>,
 }

@@ -12,14 +12,34 @@ use diesel::{
     result::{Error::NotFound, QueryResult},
 };
 use itertools::Itertools;
-use poise::serenity_prelude::{ChannelId, CreateEmbed, MessageBuilder};
+use poise::serenity_prelude::{ChannelId, CreateEmbed, Member, MessageBuilder, UserId};
+use tokio_stream::{self as stream, StreamExt};
 
 use crate::{
     models::{NewTodo, Todo},
     Conn, Context, Result,
 };
 
-type TodoEntry = (u64, String);
+struct TodoEntry {
+    id: i32,
+    assignee: Option<String>,
+    text: String,
+}
+
+impl TodoEntry {
+    pub async fn new(id: i32, assignee: Option<i64>, text: String, ctx: Context<'_>) -> Self {
+        let assignee = match assignee {
+            Some(id) => {
+                let userid = UserId(id as u64);
+                let guildid = ctx.guild_id().unwrap();
+                let member = guildid.member(ctx, userid).await.unwrap();
+                Some(get_member_nickname(&member))
+            }
+            None => None,
+        };
+        Self { id, assignee, text }
+    }
+}
 
 #[derive(Debug)]
 pub struct TodoData {
@@ -56,7 +76,7 @@ impl TodoData {
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
-    subcommands("list", "add", "complete", "uncomplete", "delete")
+    subcommands("list", "add", "complete", "uncomplete", "delete", "assign")
 )]
 pub async fn todo(_ctx: Context<'_>) -> Result<()> {
     Ok(())
@@ -72,27 +92,34 @@ pub async fn list(
     #[description = "Show completed TODOs"]
     #[flag]
     completed: bool,
+    #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::{channel_id, completion_date, todos};
+    use crate::schema::todos::dsl::*;
 
-    // FIXME: looks bad, there needs to be smarter way
-    let results = if completed {
-        todos
-            .filter(channel_id.eq(i64::from(ctx.channel_id())))
-            .load::<Todo>(&mut ctx.data().db.get().unwrap())
-    } else {
-        todos
-            .filter(channel_id.eq(i64::from(ctx.channel_id())))
-            .filter(completion_date.is_null())
-            .load::<Todo>(&mut ctx.data().db.get().unwrap())
+    let mut query = todos
+        .into_boxed()
+        .filter(channel_id.eq(i64::from(ctx.channel_id())));
+
+    if !completed {
+        query = query.filter(completion_date.is_null());
     };
+
+    if let Some(member) = todo_assignee {
+        query = query.filter(assignee.eq(member.user.id.0 as i64));
+    };
+
+    let results = query.load::<Todo>(&mut ctx.data().db.get().unwrap());
 
     let data = match results {
         Ok(todo_list) => {
-            let output: Vec<TodoEntry> = todo_list
-                .into_iter()
-                .map(|t| (t.id as u64, t.todo))
-                .collect();
+            let mut output: Vec<TodoEntry> = vec![];
+            let mut todos_stream = stream::iter(todo_list);
+
+            while let Some(t) = todos_stream.next().await {
+                let entry = TodoEntry::new(t.id, t.assignee, t.todo, ctx).await;
+                output.push(entry);
+            }
+
             if output.is_empty() {
                 EmbedData::Text("There are no incompleted TODOs in this channel.".to_string())
             } else {
@@ -110,7 +137,11 @@ pub async fn list(
 
 /// Add TODO entry
 #[poise::command(slash_command)]
-pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: String) -> Result<()> {
+pub async fn add(
+    ctx: Context<'_>,
+    #[description = "TODO content"] content: String,
+    #[description = "TODO assignee"] assignee: Option<Member>,
+) -> Result<()> {
     use crate::schema::todos::dsl::todos;
 
     let data = if content.len() > 1024 {
@@ -119,11 +150,18 @@ pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: Stri
         let time = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let text = content.replace('@', "@\u{200B}").replace('`', "'");
+        let nickname = match &assignee {
+            Some(m) => get_member_nickname(&m),
+            None => "no one".to_string(),
+        };
+        let assignee = assignee.map(|m| m.user.id.0 as i64);
+
         let new_todo = NewTodo {
             channel_id: &(i64::from(ctx.channel_id())),
             id: &new_id,
             todo: &text,
             creation_date: &time.to_string(),
+            assignee,
         };
 
         let result = diesel::insert_into(todos)
@@ -133,9 +171,9 @@ pub async fn add(ctx: Context<'_>, #[description = "TODO content"] content: Stri
         match result {
             Ok(_) => EmbedData::Text(
                 MessageBuilder::new()
-                    .push("TODO (")
+                    .push(format!("TODO [{}] (", &new_id))
                     .push_mono_safe(&text)
-                    .push(") added.")
+                    .push(format!(") added and assigned to {nickname}."))
                     .build(),
             ),
             Err(NotFound) => EmbedData::Text("Not found.".to_string()),
@@ -162,7 +200,7 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
     let data = match deleted {
         Ok(deleted) => EmbedData::Text(
             MessageBuilder::new()
-                .push("TODO (")
+                .push(format!("TODO [{}] (", &todo_id))
                 .push_mono_safe(&deleted)
                 .push(") deleted.")
                 .build(),
@@ -193,7 +231,7 @@ pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64)
     let data = match completed {
         Ok(completed) => EmbedData::Text(
             MessageBuilder::new()
-                .push("TODO (")
+                .push(format!("TODO [{}] (", &todo_id))
                 .push_mono_safe(&completed)
                 .push(") completed.")
                 .build(),
@@ -222,7 +260,7 @@ pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i6
     let data = match uncompleted {
         Ok(uncompleted) => EmbedData::Text(
             MessageBuilder::new()
-                .push("TODO (")
+                .push(format!("TODO [{}] (", &todo_id))
                 .push_mono_safe(&uncompleted)
                 .push(") uncompleted.")
                 .build(),
@@ -234,6 +272,52 @@ pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i6
     respond(ctx, data).await;
 
     Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn assign(
+    ctx: Context<'_>,
+    #[description = "TODO id"] todo_id: i64,
+    #[description = "TODO new assignee"] new_assignee: Option<Member>,
+) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let nickname = match &new_assignee {
+        Some(m) => get_member_nickname(&m),
+        None => "no one".to_string(),
+    };
+    let new_assignee = new_assignee.map(|m| m.user.id.0 as i64);
+
+    let reassigned: QueryResult<String> = diesel::update(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .set(assignee.eq(new_assignee))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match reassigned {
+        Ok(reassigned) => EmbedData::Text(
+            MessageBuilder::new()
+                .push(format!("TODO [{}] (", &todo_id))
+                .push_mono_safe(&reassigned)
+                .push(format!(") reassigned to {nickname}."))
+                .build(),
+        ),
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Completing TODO failed.".to_string()),
+    };
+
+    respond(ctx, data).await;
+
+    Ok(())
+}
+
+fn get_member_nickname(member: &Member) -> String {
+    if let Some(nick) = &member.nick {
+        return nick.to_string();
+    }
+
+    member.user.name.to_string()
 }
 
 enum EmbedData {
@@ -251,11 +335,15 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
     match data {
         EmbedData::Text(text) => builder.description(text),
         EmbedData::Fields(fields) => {
-            let new_fields: Vec<(u64, String, bool)> = fields
+            let new_fields: Vec<(String, String, bool)> = fields
                 .into_iter()
-                .map(|(x, y)| {
-                    let b = y.len() <= 25;
-                    (x, y, b)
+                .map(|entry| {
+                    let inline = entry.text.len() <= 25;
+                    let mut name = format!("[{}]", entry.id);
+                    if let Some(nick) = entry.assignee {
+                        name = format!("{} - {}", name, nick);
+                    };
+                    (name, entry.text, inline)
                 })
                 .collect();
             builder.title("TODOs").fields(new_fields)

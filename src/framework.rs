@@ -1,5 +1,11 @@
 use log::{debug, info};
-use poise::{serenity_prelude as serenity, Event, Framework, FrameworkContext};
+use poise::{
+    serenity_prelude::{
+        self as serenity, model::application::interaction::Interaction::ApplicationCommand,
+        ApplicationCommandInteraction, CommandDataOption,
+    },
+    Event, Framework, FrameworkContext,
+};
 
 use crate::{ctx_data::CtxData, settings::Settings, tasks, Error, Result};
 
@@ -26,11 +32,38 @@ pub async fn event_handler<'a>(
     _framework_context: FrameworkContext<'a, CtxData, Error>,
     _ctx_data: &'a CtxData,
 ) -> Result<()> {
-    debug!("Got an event in event handler: {:?}", event.name());
+    // debug!("Got an event in event handler: {:?}", event.name());
 
     // TODO: use message for URLs?
     match event {
         Event::Ready { data_about_bot } => info!("{} is connected!", data_about_bot.user.name),
+
+        Event::InteractionCreate { interaction } => {
+            if let ApplicationCommand(ApplicationCommandInteraction {
+                data,
+                channel_id,
+                user,
+                ..
+            }) = interaction
+            {
+                let args = if !data.options.is_empty() {
+                    let mut buf = String::new();
+                    gather_options(&mut buf, &data.options);
+                    buf
+                } else {
+                    "".to_string()
+                };
+
+                debug!(
+                    "INTR: cmd[{}] args [{}] channelid[{}] userid[{}] username[{}]",
+                    data.name,
+                    args.trim_start(),
+                    channel_id.0,
+                    user.id,
+                    user.name
+                )
+            }
+        }
 
         #[allow(unused_variables)]
         Event::MessageDelete {
@@ -39,7 +72,7 @@ pub async fn event_handler<'a>(
             guild_id,
         } => {
             if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
-                debug!("Error while sending <deleted>: {:?}", e);
+                debug!("Error while sending <deleted>: {:#?}", e);
             };
         }
 
@@ -77,4 +110,18 @@ pub async fn setup<'a>(
     .await?;
     tasks::start_tasks(&ctx_data, ctx.http.clone());
     Ok(ctx_data)
+}
+
+fn gather_options(buf: &mut String, opts: &Vec<CommandDataOption>) {
+    for opt in opts {
+        buf.push(' ');
+        buf.push_str(&opt.name);
+
+        if let Some(val) = &opt.value {
+            buf.push(' ');
+            buf.push_str(&val.to_string());
+        }
+
+        gather_options(buf, &opt.options);
+    }
 }

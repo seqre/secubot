@@ -18,6 +18,7 @@ maintenance = { status = "experimental" }
 poise = { version = "0.5" }
 serenity = { version = "0.11", default-features = false, features = ["client", "cache", "gateway", "http", "model", "rustls_backend", "unstable_discord_api"] }
 tokio = { version = "1.20", features = ["full"] }
+tokio-stream = { version = "0.1" }
 diesel = { version = "2.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2", "chrono"] }
 diesel_migrations = { version = "2.0" }
 chrono = { version = "0.4", features = ["serde"] }

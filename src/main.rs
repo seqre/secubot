@@ -29,12 +29,12 @@ mod settings;
 #[allow(clippy::module_name_repetitions)]
 mod tasks;
 
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
+
 type Result<T> = anyhow::Result<T>;
 type Error = anyhow::Error;
 type Context<'a> = poise::Context<'a, CtxData, anyhow::Error>;
 type Conn = Pool<ConnectionManager<SqliteConnection>>;
-
-const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 
 fn setup_db(db_url: &String) -> Conn {
     let conn_man = ConnectionManager::<SqliteConnection>::new(db_url);

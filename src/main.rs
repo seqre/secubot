@@ -16,7 +16,6 @@ use crate::{
 
 // TODO:
 // mod events;
-// mod handler;
 mod commands;
 mod ctx_data;
 mod framework;

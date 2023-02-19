@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use itertools::Itertools;
 use serenity::{async_trait, http::client::Http, model::id::ChannelId};
 use tokio::time::Duration;
 
-use crate::{
-    models::*,
-    secubot::{Conn, Secubot},
-    tasks::Task,
-};
+use crate::{models::*, tasks::Task, Conn};
 
 pub struct TodoReminderTask {
     db: Conn,
@@ -15,11 +13,8 @@ pub struct TodoReminderTask {
 }
 
 impl TodoReminderTask {
-    pub fn new(secubot: &Secubot, http: Arc<Http>) -> Self {
-        Self {
-            db: secubot.db.clone(),
-            http,
-        }
+    pub fn new(db: Conn, http: Arc<Http>) -> Self {
+        Self { db, http }
     }
 }
 
@@ -31,9 +26,7 @@ impl Task for TodoReminderTask {
     }
 
     async fn work(&self) {
-        use itertools::Itertools;
-
-        use crate::{schema::todos::dsl::*, *};
+        use crate::schema::todos::dsl::*;
 
         let results = todos
             .filter(completion_date.is_null())
@@ -48,11 +41,11 @@ impl Task for TodoReminderTask {
             .collect();
 
         for (chnl, count) in channels {
-            let _result = chnl
+            _ = chnl
                 .send_message(&self.http, |message| {
                     message.embed(|embed| {
-                        embed.description(format!("There are {} uncompleted TODOs here!", count));
                         embed.title("TODOs reminder");
+                        embed.description(format!("There are {} uncompleted TODOs here!", count));
                         embed
                     })
                 })

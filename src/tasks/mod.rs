@@ -5,6 +5,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::{ctx_data::CtxData, tasks::todo_reminder::TodoReminderTask};
 
+#[allow(clippy::cast_precision_loss)]
 mod todo_reminder;
 
 #[async_trait]

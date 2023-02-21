@@ -1,3 +1,8 @@
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_possible_truncation)]
+
 use std::{
     collections::HashMap,
     sync::{
@@ -344,7 +349,7 @@ pub async fn rmove(
     #[description = "TODO id"] todo_id: i64,
     #[description = "TODO new channel"] new_channel: GuildChannel,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{channel_id, id, todo, todos};
 
     let new_channel_id = new_channel.id.0 as i64;
     let new_id = ctx.data().todo_data.get_id(new_channel.id);
@@ -380,7 +385,7 @@ pub async fn edit(
     #[description = "TODO id"] todo_id: i64,
     #[description = "TODO new content"] content: String,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{channel_id, id, todo, todos};
 
     let data = if content.len() > 1024 {
         EmbedData::Text("Content can't have more than 1024 characters.".to_string())
@@ -399,7 +404,7 @@ pub async fn edit(
                 MessageBuilder::new()
                     .push(format!("TODO [{}] edited to (", &todo_id))
                     .push_mono_safe(&edited)
-                    .push(format!(")."))
+                    .push(").".to_string())
                     .build(),
             ),
             Err(NotFound) => EmbedData::Text("Not found.".to_string()),

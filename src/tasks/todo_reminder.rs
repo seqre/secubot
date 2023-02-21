@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use itertools::Itertools;
-use serenity::{async_trait, http::client::Http, model::id::ChannelId};
+use poise::serenity_prelude::{async_trait, ChannelId, Http};
 use tokio::time::Duration;
 
 use crate::{models::Todo, tasks::Task, Conn};
@@ -25,7 +25,6 @@ impl Task for TodoReminderTask {
         Duration::from_secs(60 * 60 * 24 * 5)
     }
 
-    #[allow(clippy::cast_precision_loss)]
     #[allow(clippy::cast_sign_loss)]
     async fn work(&self) {
         use crate::schema::todos::dsl::{completion_date, todos};

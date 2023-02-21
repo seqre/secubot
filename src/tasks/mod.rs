@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
-use serenity::{async_trait, http::client::Http};
+use poise::serenity_prelude::{async_trait, Http};
 use tokio::time::{sleep, Duration};
 
 use crate::{ctx_data::CtxData, tasks::todo_reminder::TodoReminderTask};
 
-#[allow(clippy::cast_precision_loss)]
 mod todo_reminder;
 
 #[async_trait]

@@ -25,6 +25,8 @@ impl Task for TodoReminderTask {
         Duration::from_secs(60 * 60 * 24 * 5)
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_sign_loss)]
     async fn work(&self) {
         use crate::schema::todos::dsl::{completion_date, todos};
 

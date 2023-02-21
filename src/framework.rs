@@ -38,31 +38,31 @@ pub async fn event_handler<'a>(
     match event {
         Event::Ready { data_about_bot } => info!("{} is connected!", data_about_bot.user.name),
 
-        Event::InteractionCreate { interaction } => {
-            if let ApplicationCommand(ApplicationCommandInteraction {
-                data,
-                channel_id,
-                user,
-                ..
-            }) = interaction
-            {
-                let args = if !data.options.is_empty() {
-                    let mut buf = String::new();
-                    gather_options(&mut buf, &data.options);
-                    buf
-                } else {
-                    String::new()
-                };
+        Event::InteractionCreate {
+            interaction:
+                ApplicationCommand(ApplicationCommandInteraction {
+                    data,
+                    channel_id,
+                    user,
+                    ..
+                }),
+        } => {
+            let args = if data.options.is_empty() {
+                String::new()
+            } else {
+                let mut buf = String::new();
+                gather_options(&mut buf, &data.options);
+                buf
+            };
 
-                debug!(
-                    "INTR: cmd[{}] args [{}] channelid[{}] userid[{}] username[{}]",
-                    data.name,
-                    args.trim_start(),
-                    channel_id.0,
-                    user.id,
-                    user.name
-                )
-            }
+            debug!(
+                "INTR: cmd[{}] args [{}] channelid[{}] userid[{}] username[{}]",
+                data.name,
+                args.trim_start(),
+                channel_id.0,
+                user.id,
+                user.name
+            );
         }
 
         #[allow(unused_variables)]

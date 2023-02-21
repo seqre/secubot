@@ -12,7 +12,9 @@ use diesel::{
     result::{Error::NotFound, QueryResult},
 };
 use itertools::Itertools;
-use poise::serenity_prelude::{ChannelId, CreateEmbed, Member, MessageBuilder, UserId};
+use poise::serenity_prelude::{
+    ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder, UserId,
+};
 use tokio_stream::{self as stream, StreamExt};
 
 use crate::{
@@ -76,7 +78,7 @@ impl TodoData {
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
-    subcommands("list", "add", "complete", "uncomplete", "delete", "assign")
+    subcommands("list", "add", "complete", "uncomplete", "delete", "assign", "rmove")
 )]
 pub async fn todo(_ctx: Context<'_>) -> Result<()> {
     Ok(())
@@ -304,7 +306,42 @@ pub async fn assign(
                 .build(),
         ),
         Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-        Err(_) => EmbedData::Text("Completing TODO failed.".to_string()),
+        Err(_) => EmbedData::Text("Assigning TODO failed.".to_string()),
+    };
+
+    respond(ctx, data, true).await;
+
+    Ok(())
+}
+
+#[poise::command(slash_command, rename = "move")]
+pub async fn rmove(
+    ctx: Context<'_>,
+    #[description = "TODO id"] todo_id: i64,
+    #[description = "TODO new channel"] new_channel: GuildChannel,
+) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let new_channel_id = new_channel.id.0 as i64;
+    let new_id = ctx.data().todo_data.get_id(new_channel.id);
+
+    let moved: QueryResult<String> = diesel::update(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .set((channel_id.eq(new_channel_id), id.eq(new_id)))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match moved {
+        Ok(moved) => EmbedData::Text(
+            MessageBuilder::new()
+                .push(format!("TODO [{}] (", &todo_id))
+                .push_mono_safe(&moved)
+                .push(format!(") moved to {}.", new_channel.name()))
+                .build(),
+        ),
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Moving TODO failed.".to_string()),
     };
 
     respond(ctx, data, true).await;

@@ -42,6 +42,7 @@ impl PingData {
     }
 }
 
+/// Manage the Mighty Ping Cannon
 #[allow(clippy::unused_async)]
 #[poise::command(slash_command, subcommands("commence", "remove", "stop"))]
 pub async fn ping(_ctx: Context<'_>) -> Result<()> {

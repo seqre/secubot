@@ -75,6 +75,19 @@ impl TodoData {
     }
 }
 
+// The following docs are done to prevent line breaks.
+
+/// Manage channel TODOs
+#[doc = ""]
+#[doc = "The following commands are supported (`{}` indicate mandatory argument, `[]` indicate optional argument):"]
+#[doc = "- `/todo list [completed] [todo_assignee]` - lists all TODOs in the channel, `completed` flag set to True includes completed TODOs in the list, `todo_assignee` field set to someone will show only TODOs assigned to them"]
+#[doc = "- `/todo add {content} [assignee]` - adds new TODO in the channel, `content` field is required and contains the TODO text, you can assign it to a specific person by using `assignee` field"]
+#[doc = "- `/todo complete {id}` - completes TODO specified by `id`"]
+#[doc = "- `/todo uncomplete {id}` - uncompletes TODO specified by `id`"]
+#[doc = "- `/todo delete {id}` - deletes TODO specified by `id`"]
+#[doc = "- `/todo assign {id} {new_assignee}` - assignees TODO specified by `id` to `new_assignee`"]
+#[doc = "- `/todo move {id} {new_channel}` - moves TODO specified by `id` to `new_channel`"]
+#[doc = "- `/todo edit {id} {new_content}` - replaces content of TODO specified by `id` to {new_content}"]
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
@@ -285,6 +298,7 @@ pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i6
     Ok(())
 }
 
+/// Assign TODO entry
 #[poise::command(slash_command)]
 pub async fn assign(
     ctx: Context<'_>,

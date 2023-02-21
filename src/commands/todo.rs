@@ -130,7 +130,7 @@ pub async fn list(
         Err(_) => EmbedData::Text("Listing TODOs failed.".to_string()),
     };
 
-    respond(ctx, data).await;
+    respond(ctx, data, false).await;
 
     Ok(())
 }
@@ -181,7 +181,7 @@ pub async fn add(
         }
     };
 
-    respond(ctx, data).await;
+    respond(ctx, data, false).await;
 
     Ok(())
 }
@@ -209,7 +209,7 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
         Err(_) => EmbedData::Text("Deleting TODO failed.".to_string()),
     };
 
-    respond(ctx, data).await;
+    respond(ctx, data, true).await;
 
     Ok(())
 }
@@ -240,7 +240,7 @@ pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64)
         Err(_) => EmbedData::Text("Completing TODO failed.".to_string()),
     };
 
-    respond(ctx, data).await;
+    respond(ctx, data, false).await;
 
     Ok(())
 }
@@ -269,7 +269,7 @@ pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i6
         Err(_) => EmbedData::Text("Uncompleting TODO failed.".to_string()),
     };
 
-    respond(ctx, data).await;
+    respond(ctx, data, true).await;
 
     Ok(())
 }
@@ -307,7 +307,7 @@ pub async fn assign(
         Err(_) => EmbedData::Text("Completing TODO failed.".to_string()),
     };
 
-    respond(ctx, data).await;
+    respond(ctx, data, true).await;
 
     Ok(())
 }
@@ -325,9 +325,13 @@ enum EmbedData {
     Fields(Vec<TodoEntry>),
 }
 
-async fn respond(ctx: Context<'_>, data: EmbedData) {
+async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
     _ = ctx
-        .send(|reply| reply.embed(|embed| create_embed(embed, data)))
+        .send(|reply| {
+            reply
+                .embed(|embed| create_embed(embed, data))
+                .ephemeral(ephemeral)
+        })
         .await;
 }
 

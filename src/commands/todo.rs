@@ -78,7 +78,16 @@ impl TodoData {
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
-    subcommands("list", "add", "complete", "uncomplete", "delete", "assign", "rmove")
+    subcommands(
+        "list",
+        "add",
+        "complete",
+        "uncomplete",
+        "delete",
+        "assign",
+        "rmove",
+        "edit"
+    )
 )]
 pub async fn todo(_ctx: Context<'_>) -> Result<()> {
     Ok(())
@@ -314,6 +323,7 @@ pub async fn assign(
     Ok(())
 }
 
+/// Move TODO entry
 #[poise::command(slash_command, rename = "move")]
 pub async fn rmove(
     ctx: Context<'_>,
@@ -342,6 +352,45 @@ pub async fn rmove(
         ),
         Err(NotFound) => EmbedData::Text("Not found.".to_string()),
         Err(_) => EmbedData::Text("Moving TODO failed.".to_string()),
+    };
+
+    respond(ctx, data, false).await;
+
+    Ok(())
+}
+
+/// Edit TODO entry
+#[poise::command(slash_command)]
+pub async fn edit(
+    ctx: Context<'_>,
+    #[description = "TODO id"] todo_id: i64,
+    #[description = "TODO new content"] content: String,
+) -> Result<()> {
+    use crate::schema::todos::dsl::*;
+
+    let data = if content.len() > 1024 {
+        EmbedData::Text("Content can't have more than 1024 characters.".to_string())
+    } else {
+        let text = content.replace('@', "@\u{200B}").replace('`', "'");
+
+        let edited: QueryResult<String> = diesel::update(todos)
+            .filter(channel_id.eq(i64::from(ctx.channel_id())))
+            .filter(id.eq(todo_id as i32))
+            .set(todo.eq(text))
+            .returning(todo)
+            .get_result(&mut ctx.data().db.get().unwrap());
+
+        match edited {
+            Ok(edited) => EmbedData::Text(
+                MessageBuilder::new()
+                    .push(format!("TODO [{}] edited to (", &todo_id))
+                    .push_mono_safe(&edited)
+                    .push(format!(")."))
+                    .build(),
+            ),
+            Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+            Err(_) => EmbedData::Text("Adding TODO failed.".to_string()),
+        }
     };
 
     respond(ctx, data, true).await;

@@ -20,9 +20,7 @@ use lazy_static::lazy_static;
 use poise::serenity_prelude::{
     ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder, UserId,
 };
-use time::{
-    format_description, format_description::FormatItem, formatting::Formattable, OffsetDateTime,
-};
+use time::{format_description, format_description::FormatItem, OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
 
 use crate::{
@@ -211,7 +209,7 @@ pub async fn add(
             channel_id: &(i64::from(ctx.channel_id())),
             id: &new_id,
             todo: &text,
-            creation_date: &time.to_string(),
+            creation_date: &time,
             assignee,
         };
 

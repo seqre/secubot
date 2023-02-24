@@ -31,10 +31,17 @@ struct TodoEntry {
     id: i32,
     assignee: Option<String>,
     text: String,
+    completed: bool,
 }
 
 impl TodoEntry {
-    pub async fn new(id: i32, assignee: Option<i64>, text: String, ctx: Context<'_>) -> Self {
+    pub async fn new(
+        id: i32,
+        assignee: Option<i64>,
+        text: String,
+        completed: bool,
+        ctx: Context<'_>,
+    ) -> Self {
         let assignee = match assignee {
             Some(id) => {
                 let userid = UserId(id as u64);
@@ -44,7 +51,13 @@ impl TodoEntry {
             }
             None => None,
         };
-        Self { id, assignee, text }
+        let completed = completed | false;
+        Self {
+            id,
+            assignee,
+            text,
+            completed,
+        }
     }
 }
 
@@ -145,7 +158,8 @@ pub async fn list(
             let mut todos_stream = stream::iter(todo_list);
 
             while let Some(t) = todos_stream.next().await {
-                let entry = TodoEntry::new(t.id, t.assignee, t.todo, ctx).await;
+                let completed = t.completion_date.is_some();
+                let entry = TodoEntry::new(t.id, t.assignee, t.todo, completed, ctx).await;
                 output.push(entry);
             }
 
@@ -447,12 +461,14 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
             let new_fields: Vec<(String, String, bool)> = fields
                 .into_iter()
                 .map(|entry| {
-                    let inline = entry.text.len() <= 25;
-                    let mut name = format!("[{}]", entry.id);
+                    let mut title = format!("[{}]", entry.id);
+                    if entry.completed {
+                        title = format!("{title} [DONE]");
+                    }
                     if let Some(nick) = entry.assignee {
-                        name = format!("{name} - {nick}");
+                        title = format!("{title} - {nick}");
                     };
-                    (name, entry.text, inline)
+                    (title, entry.text, false)
                 })
                 .collect();
             builder.title("TODOs").fields(new_fields)

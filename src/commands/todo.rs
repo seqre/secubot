@@ -11,14 +11,17 @@ use std::{
     },
 };
 
-use chrono::{NaiveDateTime, Utc};
 use diesel::{
     prelude::*,
     result::{Error::NotFound, QueryResult},
 };
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use poise::serenity_prelude::{
     ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder, UserId,
+};
+use time::{
+    format_description, format_description::FormatItem, formatting::Formattable, OffsetDateTime,
 };
 use tokio_stream::{self as stream, StreamExt};
 
@@ -26,6 +29,11 @@ use crate::{
     models::{NewTodo, Todo},
     Conn, Context, Result,
 };
+
+lazy_static! {
+    static ref TIME_FORMAT: Vec<FormatItem<'static>> =
+        format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
+}
 
 struct TodoEntry {
     id: i32,
@@ -190,7 +198,7 @@ pub async fn add(
     let data = if content.len() > 1024 {
         EmbedData::Text("Content can't have more than 1024 characters.".to_string())
     } else {
-        let time = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
+        let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let text = content.replace('@', "@\u{200B}").replace('`', "'");
         let nickname = match &assignee {
@@ -262,7 +270,7 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
 pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
     use crate::schema::todos::dsl::{channel_id, completion_date, id, todo, todos};
 
-    let time = NaiveDateTime::from_timestamp_opt(Utc::now().timestamp(), 0).unwrap();
+    let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
 
     let completed: QueryResult<String> = diesel::update(todos)
         .filter(channel_id.eq(i64::from(ctx.channel_id())))

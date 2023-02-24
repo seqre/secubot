@@ -18,9 +18,9 @@ maintenance = { status = "experimental" }
 poise = { version = "0.5" }
 tokio = { version = "1.20", features = ["rt-multi-thread"] }
 tokio-stream = { version = "0.1" }
-diesel = { version = "2.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2", "chrono"] }
+diesel = { version = "2.0", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2"] }
 diesel_migrations = { version = "2.0" }
-chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3"}
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = { version = "1.0" }
 regex = { version = "1.6" }

@@ -5,7 +5,7 @@ use itertools::Itertools;
 use poise::serenity_prelude::{async_trait, ChannelId, Http};
 use tokio::time::Duration;
 
-use crate::{models::Todo, tasks::Task, Conn};
+use crate::{models::todo::Todo, tasks::Task, Conn};
 
 pub struct TodoReminderTask {
     db: Conn,

@@ -25,7 +25,7 @@ use tokio_stream::{self as stream, StreamExt};
 use tracing::debug;
 
 use crate::{
-    models::{NewTodo, Todo},
+    models::todo::{NewTodo, Todo},
     Conn, Context, Result,
 };
 

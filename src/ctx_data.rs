@@ -3,6 +3,7 @@ use crate::{
     Conn,
 };
 
+#[derive(Debug)]
 pub struct CtxData {
     pub db: Conn,
     pub ping_data: PingData,

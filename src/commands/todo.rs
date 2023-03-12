@@ -22,6 +22,7 @@ use poise::serenity_prelude::{
 };
 use time::{format_description, format_description::FormatItem, OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
+use tracing::debug;
 
 use crate::{
     models::{NewTodo, Todo},
@@ -33,6 +34,7 @@ lazy_static! {
         format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
 }
 
+#[derive(Debug)]
 struct TodoEntry {
     id: i32,
     assignee: Option<String>,
@@ -445,19 +447,23 @@ fn get_member_nickname(member: &Member) -> String {
     member.user.name.to_string()
 }
 
+#[derive(Debug)]
 enum EmbedData {
     Text(String),
     Fields(Vec<TodoEntry>),
 }
 
 async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
-    _ = ctx
+    let response = ctx
         .send(|reply| {
             reply
                 .embed(|embed| create_embed(embed, data))
                 .ephemeral(ephemeral)
         })
         .await;
+    if let Err(e) = response {
+        debug!("{:?}", e);
+    }
 }
 
 fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed {

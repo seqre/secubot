@@ -1,4 +1,3 @@
-use log::{debug, info};
 use poise::{
     serenity_prelude::{
         self as serenity, model::application::interaction::Interaction::ApplicationCommand,
@@ -6,6 +5,7 @@ use poise::{
     },
     Event, Framework, FrameworkContext,
 };
+use tracing::{debug, info};
 
 use crate::{ctx_data::CtxData, settings::Settings, tasks, Error, Result};
 

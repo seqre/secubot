@@ -5,7 +5,6 @@ use std::{
 };
 
 use lazy_static::lazy_static;
-use log::debug;
 use poise::serenity_prelude::{ChannelId, Http, UserId};
 use regex::Regex;
 use tokio::{
@@ -16,6 +15,7 @@ use tokio::{
     task::JoinHandle,
     time::sleep,
 };
+use tracing::debug;
 
 use crate::{Context, Result};
 

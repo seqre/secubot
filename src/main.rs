@@ -5,8 +5,9 @@ use diesel::{
     sqlite::SqliteConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use log::{error, info, warn, LevelFilter};
 use poise::serenity_prelude as serenity;
+use tracing::{error, info, level_filters::LevelFilter, warn};
+use tracing_subscriber;
 
 use crate::{
     commands::{changelog, ping, todo},
@@ -60,18 +61,21 @@ fn get_intents() -> serenity::GatewayIntents {
 fn setup_logging(log_level: &str) {
     let log_level = LevelFilter::from_str(log_level).unwrap_or_else(|_| {
         warn!("Incorrect log_level in config, using Debug");
-        LevelFilter::Debug
+        LevelFilter::DEBUG
     });
-    env_logger::Builder::new()
-        .filter_module("secubot", log_level)
-        .init();
+    // env_logger::Builder::new()
+    //    .filter_module("secubot", log_level)
+    //    .init();
 }
 
 #[tokio::main]
 async fn main() {
     let settings = Settings::new().expect("Missing configurtaion!");
 
-    setup_logging(&settings.log_level);
+    tracing_subscriber::fmt()
+        // TODO: dirty way, find better solution
+        .with_env_filter("secubot=debug")
+        .init();
 
     let mut clean_settings = settings.clone();
     clean_settings.discord_token = String::from("<REDACTED>");

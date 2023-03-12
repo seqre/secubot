@@ -54,8 +54,8 @@ impl TodoEntry {
             Some(id) => {
                 let userid = UserId(id as u64);
                 let guildid = ctx.guild_id().unwrap();
-                let member = guildid.member(ctx, userid).await.unwrap();
-                Some(get_member_nickname(&member))
+                let member = guildid.member(ctx, userid).await;
+                member.ok().map(|m| get_member_nickname(&m))
             }
             None => None,
         };

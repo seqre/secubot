@@ -25,6 +25,7 @@ use tokio_stream::{self as stream, StreamExt};
 use tracing::debug;
 
 use crate::{
+    commands::DISCORD_EMBED_FIELDS_LIMIT,
     models::todo::{NewTodo, Todo},
     Conn, Context, Result,
 };
@@ -143,6 +144,7 @@ pub async fn list(
     #[flag]
     completed: bool,
     #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
+    #[description = "Page to show"] page: Option<u32>,
 ) -> Result<()> {
     use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
 
@@ -174,7 +176,7 @@ pub async fn list(
             if output.is_empty() {
                 EmbedData::Text("There are no incompleted TODOs in this channel.".to_string())
             } else {
-                EmbedData::Fields(output)
+                EmbedData::Fields(output, page.unwrap_or(1))
             }
         }
         Err(NotFound) => EmbedData::Text("Not found.".to_string()),
@@ -450,7 +452,7 @@ fn get_member_nickname(member: &Member) -> String {
 #[derive(Debug)]
 enum EmbedData {
     Text(String),
-    Fields(Vec<TodoEntry>),
+    Fields(Vec<TodoEntry>, u32),
 }
 
 async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
@@ -469,9 +471,16 @@ async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
 fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed {
     match data {
         EmbedData::Text(text) => builder.description(text),
-        EmbedData::Fields(fields) => {
+        EmbedData::Fields(fields, page) => {
+            let total = fields.len() as u32;
+            let pages = total.div_ceil(DISCORD_EMBED_FIELDS_LIMIT);
+            let page = std::cmp::min(page, pages);
+            let footer = format!("Page {}/{}: {} uncompleted TODOs", page, pages, total);
+            let skip = DISCORD_EMBED_FIELDS_LIMIT * (page - 1);
+
             let new_fields: Vec<(String, String, bool)> = fields
                 .into_iter()
+                .skip(skip.try_into().unwrap())
                 .map(|entry| {
                     let mut title = format!("[{}]", entry.id);
                     if entry.completed {
@@ -482,8 +491,13 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
                     };
                     (title, entry.text, false)
                 })
+                .take(DISCORD_EMBED_FIELDS_LIMIT as usize)
                 .collect();
-            builder.title("TODOs").fields(new_fields)
+
+            builder
+                .title("TODOs")
+                .fields(new_fields)
+                .footer(|f| f.text(footer))
         }
     }
 }

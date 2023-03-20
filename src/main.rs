@@ -1,3 +1,5 @@
+#![feature(int_roundings)]
+
 use std::str::FromStr;
 
 use diesel::{

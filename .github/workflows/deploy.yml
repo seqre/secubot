@@ -32,7 +32,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get -yy install musl-tools
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
           target: ${{ matrix.target }}
 
@@ -63,7 +63,7 @@ jobs:
           key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Publish to crates.io
         run: cargo publish --token ${CRATES_IO_TOKEN}

@@ -10,11 +10,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
       - uses: actions/cache@v3
         with:
           path: |
@@ -23,14 +23,14 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-debug-
-      - run: cargo build --verbose
+      - run: cargo check --verbose
 
   clippy:
     runs-on: ubuntu-latest
-    needs: ['build']
+    needs: ['check']
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
       - uses: actions/cache@v3
@@ -46,7 +46,7 @@ jobs:
 
   rustfmt:
     runs-on: ubuntu-latest
-    needs: ['build']
+    needs: ['check']
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly

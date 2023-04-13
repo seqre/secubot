@@ -190,7 +190,7 @@ pub async fn list(
                 EmbedData::Text("There are no incompleted TODOs in this channel.".to_string())
             } else {
                 if sort_by_priority {
-                    output.sort_by_key(|entry| entry.priority);
+                    output.sort_by_key(|entry| -entry.priority);
                 }
 
                 EmbedData::Fields(output, page.unwrap_or(1))

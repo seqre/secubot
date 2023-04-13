@@ -17,8 +17,12 @@ use diesel::{
 };
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use poise::serenity_prelude::{
-    ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder, UserId,
+use poise::{
+    async_trait,
+    serenity_prelude::{
+        json::Value, ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder, UserId,
+    },
+    SlashArgument,
 };
 use time::{format_description, format_description::FormatItem, OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
@@ -41,6 +45,7 @@ struct TodoEntry {
     assignee: Option<String>,
     text: String,
     completed: bool,
+    priority: i32,
 }
 
 impl TodoEntry {
@@ -49,6 +54,7 @@ impl TodoEntry {
         assignee: Option<i64>,
         text: String,
         completed: bool,
+        priority: i32,
         ctx: Context<'_>,
     ) -> Self {
         let assignee = match assignee {
@@ -66,6 +72,7 @@ impl TodoEntry {
             assignee,
             text,
             completed,
+            priority,
         }
     }
 }
@@ -114,7 +121,8 @@ impl TodoData {
 #[doc = "- `/todo delete {id}` - deletes TODO specified by `id`"]
 #[doc = "- `/todo assign {id} {new_assignee}` - assignees TODO specified by `id` to `new_assignee`"]
 #[doc = "- `/todo move {id} {new_channel}` - moves TODO specified by `id` to `new_channel`"]
-#[doc = "- `/todo edit {id} {new_content}` - replaces content of TODO specified by `id` to {new_content}"]
+#[doc = "- `/todo edit {id} {new_content}` - replaces content of TODO specified by `id` to `new_content`"]
+#[doc = "- `/todo set_priority {id} {new_priority}` - sets priotity of TODO specified by `id` to `new_priority`"]
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
@@ -126,7 +134,8 @@ impl TodoData {
         "delete",
         "assign",
         "rmove",
-        "edit"
+        "edit",
+        "set_priority"
     )
 )]
 pub async fn todo(_ctx: Context<'_>) -> Result<()> {
@@ -145,6 +154,9 @@ pub async fn list(
     completed: bool,
     #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
     #[description = "Page to show"] page: Option<u32>,
+    #[description = "Sort TODOs by priority"]
+    #[flag]
+    sort_by_priority: bool,
 ) -> Result<()> {
     use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
 
@@ -169,13 +181,18 @@ pub async fn list(
 
             while let Some(t) = todos_stream.next().await {
                 let completed = t.completion_date.is_some();
-                let entry = TodoEntry::new(t.id, t.assignee, t.todo, completed, ctx).await;
+                let entry =
+                    TodoEntry::new(t.id, t.assignee, t.todo, completed, t.priority, ctx).await;
                 output.push(entry);
             }
 
             if output.is_empty() {
                 EmbedData::Text("There are no incompleted TODOs in this channel.".to_string())
             } else {
+                if sort_by_priority {
+                    output.sort_by_key(|entry| entry.priority);
+                }
+
                 EmbedData::Fields(output, page.unwrap_or(1))
             }
         }
@@ -194,6 +211,7 @@ pub async fn add(
     ctx: Context<'_>,
     #[description = "TODO content"] content: String,
     #[description = "TODO assignee"] assignee: Option<Member>,
+    #[description = "TODO priority"] priority: Option<Priority>,
 ) -> Result<()> {
     use crate::schema::todos::dsl::todos;
 
@@ -209,12 +227,18 @@ pub async fn add(
         };
         let assignee = assignee.map(|m| m.user.id.0 as i64);
 
+        let priority = match priority {
+            Some(priority) => priority as i32,
+            None => 0,
+        };
+
         let new_todo = NewTodo {
             channel_id: &(i64::from(ctx.channel_id())),
             id: &new_id,
             todo: &text,
             creation_date: &time,
             assignee,
+            priority,
         };
 
         let result = diesel::insert_into(todos)
@@ -366,6 +390,44 @@ pub async fn assign(
     Ok(())
 }
 
+/// Change priority of TODO entry
+#[poise::command(slash_command)]
+pub async fn set_priority(
+    ctx: Context<'_>,
+    #[description = "TODO id"] todo_id: i64,
+    #[description = "TODO new priority"] new_priority: Option<Priority>,
+) -> Result<()> {
+    use crate::schema::todos::dsl::{channel_id, id, priority, todo, todos};
+
+    let new_priority = match new_priority {
+        Some(prio) => prio as i32,
+        None => 0,
+    };
+
+    let reassigned: QueryResult<String> = diesel::update(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .set(priority.eq(new_priority))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match reassigned {
+        Ok(reassigned) => EmbedData::Text(
+            MessageBuilder::new()
+                .push(format!("TODO [{}] (", &todo_id))
+                .push_mono_safe(&reassigned)
+                .push(format!(") new priority is {new_priority}."))
+                .build(),
+        ),
+        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
+        Err(_) => EmbedData::Text("Assigning TODO failed.".to_string()),
+    };
+
+    respond(ctx, data, true).await;
+
+    Ok(())
+}
+
 /// Move TODO entry
 #[poise::command(slash_command, rename = "move")]
 pub async fn rmove(
@@ -455,6 +517,66 @@ enum EmbedData {
     Fields(Vec<TodoEntry>, u32),
 }
 
+// TODO: this implementation is so bad, improve pls
+
+#[derive(Debug)]
+pub enum Priority {
+    Low,
+    Medium,
+    High,
+}
+
+impl Priority {
+    const VALUES: [&str; 3] = ["Low", "Medium", "High"];
+}
+
+impl From<i32> for Priority {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => Priority::Low,
+            1 => Priority::Medium,
+            2 => Priority::High,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[async_trait]
+impl SlashArgument for Priority {
+    fn choices() -> Vec<poise::CommandParameterChoice> {
+        Priority::VALUES
+            .iter()
+            .map(|&s| poise::CommandParameterChoice {
+                name: String::from(s),
+                localizations: HashMap::new(),
+            })
+            .collect()
+    }
+
+    fn create(builder: &mut poise::serenity_prelude::CreateApplicationCommandOption) {
+        builder.kind(poise::serenity_prelude::CommandOptionType::Number);
+    }
+
+    async fn extract<'life0, 'life1, 'life2>(
+        _ctx: &'life0 poise::serenity_prelude::Context,
+        _interaction: poise::ApplicationCommandOrAutocompleteInteraction<'life1>,
+        value: &'life2 poise::serenity_prelude::json::Value,
+    ) -> core::result::Result<Self, poise::SlashArgError>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        'life2: 'async_trait,
+    {
+        let priority = if let Value::Number(num) = value {
+            num.as_f64().unwrap() as i32
+        } else {
+            0
+        };
+
+        Ok(Priority::from(priority))
+    }
+}
+
 async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
     let response = ctx
         .send(|reply| {
@@ -483,12 +605,18 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
                 .skip(skip.try_into().unwrap())
                 .map(|entry| {
                     let mut title = format!("[{}]", entry.id);
-                    if entry.completed {
-                        title = format!("{title} [DONE]");
-                    }
                     if let Some(nick) = entry.assignee {
                         title = format!("{title} - {nick}");
                     };
+
+                    if entry.priority != 0 {
+                        let priority = Priority::from(entry.priority);
+                        title = format!("{title} - {:?}", priority);
+                    }
+
+                    if entry.completed {
+                        title = format!("{title} [DONE]");
+                    }
                     (title, entry.text, false)
                 })
                 .take(DISCORD_EMBED_FIELDS_LIMIT as usize)

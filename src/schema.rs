@@ -8,5 +8,6 @@ diesel::table! {
         creation_date -> Text,
         completion_date -> Nullable<Text>,
         assignee -> Nullable<BigInt>,
+        priority -> Integer,
     }
 }

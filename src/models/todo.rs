@@ -10,6 +10,7 @@ pub struct Todo {
     pub creation_date: String,
     pub completion_date: Option<String>,
     pub assignee: Option<i64>,
+    pub priority: i32,
 }
 
 #[derive(Insertable)]
@@ -20,4 +21,5 @@ pub struct NewTodo<'a> {
     pub todo: &'a str,
     pub creation_date: &'a str,
     pub assignee: Option<i64>,
+    pub priority: i32,
 }

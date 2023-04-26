@@ -594,9 +594,9 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
     match data {
         EmbedData::Text(text) => builder.description(text),
         EmbedData::Fields(fields, page) => {
-            let total = fields.len() as u32;
-            let pages = total.div_ceil(DISCORD_EMBED_FIELDS_LIMIT);
-            let page = std::cmp::min(page, pages);
+            let total = fields.iter().filter(|te| !te.completed).count();
+            let pages = total.div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize);
+            let page = std::cmp::min(page, pages as u32);
             let footer = format!("Page {}/{}: {} uncompleted TODOs", page, pages, total);
             let skip = DISCORD_EMBED_FIELDS_LIMIT * (page - 1);
 

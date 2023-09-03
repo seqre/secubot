@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Write,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -192,11 +193,11 @@ impl PingWorker {
             for (channel, ping_task) in &self.pings {
                 if let Ok(ping_task) = ping_task.try_lock() {
                     if let Some(http) = &self.http {
-                        let usrs: String = ping_task
-                            .users
-                            .iter()
-                            .map(|u| format!("<@!{}>", u.0))
-                            .collect();
+                        let usrs: String =
+                            ping_task.users.iter().fold(String::new(), |mut out, u| {
+                                let _ = write!(out, "<@!{}>", u.0);
+                                out
+                            });
                         channel.say(http, format!("./ping {usrs}")).await;
                     }
                 }

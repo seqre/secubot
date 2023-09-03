@@ -12,6 +12,7 @@ pub struct Todo {
     pub assignee: Option<i64>,
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Insertable)]
 #[diesel(table_name = todos)]
 pub struct NewTodo<'a> {

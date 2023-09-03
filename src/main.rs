@@ -1,14 +1,12 @@
 #![feature(int_roundings)]
 
-use std::str::FromStr;
-
 use diesel::{
     r2d2::{ConnectionManager, Pool},
     sqlite::SqliteConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use poise::serenity_prelude as serenity;
-use tracing::{error, info, level_filters::LevelFilter, warn};
+use tracing::{error, info};
 
 use crate::{
     commands::{changelog, ping, todo},

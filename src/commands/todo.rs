@@ -475,7 +475,7 @@ fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed 
             let total = fields.iter().filter(|te| !te.completed).count();
             let pages = total.div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize);
             let page = std::cmp::min(page, pages as u32);
-            let footer = format!("Page {}/{}: {} uncompleted TODOs", page, pages, total);
+            let footer = format!("Page {page}/{pages}: {total} uncompleted TODOs");
             let skip = DISCORD_EMBED_FIELDS_LIMIT * (page - 1);
 
             let new_fields: Vec<(String, String, bool)> = fields

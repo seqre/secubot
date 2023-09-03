@@ -41,7 +41,7 @@ impl Settings {
             Ok(cwd) => cwd.display().to_string(),
             Err(_) => ".".to_string(),
         };
-        let mode = env::var("SCBT_RUN_MODE").unwrap_or_else(|_| "dev".into());
+        // let mode = env::var("SCBT_RUN_MODE").unwrap_or_else(|_| "dev".into());
 
         debug!(
             "Looking for configuration file {cwd}/config and/or configuration files in {cwd}{}",
@@ -49,8 +49,8 @@ impl Settings {
         );
 
         let config = Config::builder()
-            .add_source(File::with_name(&format!("{cwd}/config")))
-            .add_source(File::with_name(&format!("{cwd}/{mode}")).required(false))
+            .add_source(File::with_name(&format!("{cwd}/config")).required(false))
+            // .add_source(File::with_name(&format!("{cwd}/{mode}")).required(false))
             // .add_source(File::with_name(&format!("{prefix}/commands")))
             .add_source(
                 glob(&format!("{cwd}/config/*"))

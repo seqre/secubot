@@ -3,7 +3,7 @@ name: Deploy to crates.io
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -50,7 +50,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
-    needs: ['build']
+    needs: ["build"]
     steps:
       - name: Checkout source
         uses: actions/checkout@v3
@@ -69,33 +69,9 @@ jobs:
       - name: Publish to crates.io
         run: cargo publish --token "${{ secrets.CRATES_IO_TOKEN }}"
 
-  aws_deploy:
-    runs-on: ubuntu-latest
-    needs: ['build']
-    steps:
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh/
-          echo "$SSH_KEY" > ~/.ssh/private.key
-          chmod 600 ~/.ssh/private.key
-          cat >>~/.ssh/config <<END
-          Host aws
-            HostName $SSH_HOST
-            User $SSH_USER
-            IdentityFile ~/.ssh/private.key
-            StrictHostKeyChecking no
-          END
-        env:
-          SSH_USER: ${{ secrets.AWS_USERNAME }}
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_HOST: ${{ secrets.AWS_HOST }}
-
-      - name: Update secubot on server
-        run: ssh aws 'cd /opt/secubot && ./secupdate'
-
   docker_deploy:
     runs-on: ubuntu-latest
-    needs: ['build']
+    needs: ["build"]
     permissions:
       packages: write
       contents: read
@@ -112,12 +88,12 @@ jobs:
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
           VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
           [ [ "${{ github.ref }}" == "refs/tags/"* ] ] && VERSION=$(echo $VERSION | sed -e 's/^v//')
-          
+
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
-          
+
           VERSION=latest
           echo VERSION=$VERSION
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION

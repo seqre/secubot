@@ -97,17 +97,20 @@ pub async fn setup<'a>(
     ctx: &'a serenity::Context,
     _ready: &'a serenity::Ready,
     framework: &Framework<CtxData, Error>,
-    settings: Settings,
+    _settings: Settings,
     ctx_data: CtxData,
 ) -> Result<CtxData> {
-    let empty: &[poise::structs::Command<CtxData, Error>] = &[];
-    poise::builtins::register_globally(ctx, empty).await?;
-    poise::builtins::register_in_guild(
-        ctx,
-        &framework.options().commands,
-        serenity::GuildId(settings.commands.guilds[0].id),
-    )
-    .await?;
+    // let empty: &[poise::structs::Command<CtxData, Error>] = &[];
+    poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+    // TODO: add this back at some point
+    // for guild in settings.commands.guilds {
+    //     let commands = COMMANDS
+    //         .iter()
+    //         .filter(|cmd| guild.commands.contains(&cmd.name))
+    //         .collect();
+    //     poise::builtins::register_in_guild(ctx, commands,
+    // serenity::GuildId(guild.id)).await?; }
+
     tasks::start_tasks(&ctx_data, ctx.http.clone());
     Ok(ctx_data)
 }

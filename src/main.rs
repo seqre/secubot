@@ -59,15 +59,15 @@ fn get_intents() -> serenity::GatewayIntents {
     base
 }
 
-fn setup_logging(log_level: &str) {
-    let _log_level = LevelFilter::from_str(log_level).unwrap_or_else(|_| {
-        warn!("Incorrect log_level in config, using Debug");
-        LevelFilter::DEBUG
-    });
-    // env_logger::Builder::new()
-    //    .filter_module("secubot", log_level)
-    //    .init();
-}
+// fn setup_logging(log_level: &str) {
+//     let _log_level = LevelFilter::from_str(log_level).unwrap_or_else(|_| {
+//         warn!("Incorrect log_level in config, using Debug");
+//         LevelFilter::DEBUG
+//     });
+//     // env_logger::Builder::new()
+//     //    .filter_module("secubot", log_level)
+//     //    .init();
+// }
 
 #[tokio::main]
 async fn main() {
@@ -76,7 +76,7 @@ async fn main() {
         .with_env_filter("secubot=debug")
         .init();
 
-    let settings = Settings::new().expect("Missing configurtaion!");
+    let settings = Settings::new().expect("Missing configuration");
 
     let mut clean_settings = settings.clone();
     clean_settings.discord_token = String::from("<REDACTED>");

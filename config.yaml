@@ -1,3 +1,4 @@
 database:
   url: "db.sqlite"
-log_level: "Debug"
+
+discord_token: "token"

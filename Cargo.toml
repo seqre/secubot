@@ -40,3 +40,7 @@ default = []
 
 # Enable Message Content intent
 msg_content = ["dep:url_encoded_data"]
+
+[profile.release]
+lto = true
+strip = true  # Automatically strip symbols from the binary.

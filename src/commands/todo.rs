@@ -518,7 +518,6 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
             .filter(move |comp| comp.data.custom_id.starts_with(&ctx_id.to_string()))
             .await
     {
-        debug!("Got button interaction: {:?}", button);
         let interaction_id = button.data.custom_id.clone();
         if interaction_id == prev_button_id {
             page = page.checked_sub(1).unwrap_or(pages - 1)

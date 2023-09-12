@@ -88,6 +88,7 @@ async fn main() {
             commands::help(),
             commands::register(),
             changelog::changelog(),
+            changelog::version(),
             ping::ping(),
             todo::todo(),
         ],

@@ -86,6 +86,7 @@ async fn main() {
     let options = poise::FrameworkOptions {
         commands: vec![
             commands::help(),
+            commands::register(),
             changelog::changelog(),
             ping::ping(),
             todo::todo(),

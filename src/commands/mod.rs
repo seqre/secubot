@@ -27,3 +27,9 @@ pub async fn help(
     .await?;
     Ok(())
 }
+
+#[poise::command(slash_command, hide_in_help, owners_only)]
+pub async fn register(ctx: Context<'_>) -> Result<()> {
+    poise::builtins::register_application_commands_buttons(ctx).await?;
+    Ok(())
+}

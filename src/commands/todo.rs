@@ -7,8 +7,9 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicI32, Ordering},
-        Mutex,
+        Arc, Mutex,
     },
+    time::Duration,
 };
 
 use diesel::{
@@ -18,7 +19,8 @@ use diesel::{
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use poise::serenity_prelude::{
-    ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder, UserId,
+    ButtonStyle, ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder,
+    MessageComponentInteraction, UserId,
 };
 use time::{format_description, format_description::FormatItem, OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
@@ -35,7 +37,7 @@ lazy_static! {
         format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct TodoEntry {
     id: i32,
     assignee: Option<String>,
@@ -144,7 +146,6 @@ pub async fn list(
     #[flag]
     completed: bool,
     #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
-    #[description = "Page to show"] page: Option<u32>,
 ) -> Result<()> {
     use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
 
@@ -176,7 +177,7 @@ pub async fn list(
             if output.is_empty() {
                 EmbedData::Text("There are no incompleted TODOs in this channel.".to_string())
             } else {
-                EmbedData::Fields(output, page.unwrap_or(1))
+                EmbedData::Fields(output)
             }
         }
         Err(NotFound) => EmbedData::Text("Not found.".to_string()),
@@ -449,55 +450,134 @@ fn get_member_nickname(member: &Member) -> String {
     member.user.name.to_string()
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum EmbedData {
     Text(String),
-    Fields(Vec<TodoEntry>, u32),
+    Fields(Vec<TodoEntry>),
 }
 
 async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
+    match data {
+        EmbedData::Text(text) => respond_text(ctx, text, ephemeral).await,
+        EmbedData::Fields(fields) => respond_fields(ctx, fields).await,
+    }
+}
+
+async fn respond_text(ctx: Context<'_>, text: String, ephemeral: bool) {
     let response = ctx
         .send(|reply| {
             reply
-                .embed(|embed| create_embed(embed, data))
+                .embed(|embed| embed.description(text))
                 .ephemeral(ephemeral)
         })
         .await;
+
     if let Err(e) = response {
         debug!("{:?}", e);
     }
 }
+async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>) {
+    let ctx_id = ctx.id();
+    let prev_button_id = format!("{}prev", ctx_id);
+    let next_button_id = format!("{}next", ctx_id);
+    // let refresh_button_id = format!("{}refresh", ctx_id);
 
-fn create_embed(builder: &mut CreateEmbed, data: EmbedData) -> &mut CreateEmbed {
-    match data {
-        EmbedData::Text(text) => builder.description(text),
-        EmbedData::Fields(fields, page) => {
-            let total = fields.iter().filter(|te| !te.completed).count();
-            let pages = total.div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize);
-            let page = std::cmp::min(page, pages as u32);
-            let footer = format!("Page {page}/{pages}: {total} uncompleted TODOs");
-            let skip = DISCORD_EMBED_FIELDS_LIMIT * (page - 1);
+    let mut fields = fields;
+    let mut page = 0;
+    let mut pages = fields.len().div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize) as u32;
 
-            let new_fields: Vec<(String, String, bool)> = fields
-                .into_iter()
-                .skip(skip.try_into().unwrap())
-                .map(|entry| {
-                    let mut title = format!("[{}]", entry.id);
-                    if entry.completed {
-                        title = format!("{title} [DONE]");
-                    }
-                    if let Some(nick) = entry.assignee {
-                        title = format!("{title} - {nick}");
-                    };
-                    (title, entry.text, false)
+    let response = ctx
+        .send(|reply| {
+            reply.embed(|embed| {
+                let footer = get_footer(&fields, page, pages);
+                let fields = get_embed_data(&fields, page);
+                embed
+                    .title("TODOs")
+                    .fields(fields)
+                    .footer(|f| f.text(footer))
+            });
+
+            reply.components(|comp| {
+                comp.create_action_row(|ar| {
+                    ar.create_button(|cb| cb.custom_id(&prev_button_id).emoji('◀'))
+                        // .create_button(|cb| {
+                        //     cb.custom_id(&refresh_button_id)
+                        //         .label("Refresh")
+                        //         .style(ButtonStyle::Secondary)
+                        // })
+                        .create_button(|cb| cb.custom_id(&next_button_id).emoji('▶'))
                 })
-                .take(DISCORD_EMBED_FIELDS_LIMIT as usize)
-                .collect();
+            });
 
-            builder
-                .title("TODOs")
-                .fields(new_fields)
-                .footer(|f| f.text(footer))
+            reply
+        })
+        .await;
+
+    if let Err(e) = response {
+        debug!("{:?}", e);
+    }
+
+    while let Some(button) =
+        poise::serenity_prelude::CollectComponentInteraction::new(ctx.serenity_context())
+            .timeout(Duration::from_secs(60 * 3))
+            .filter(move |comp| comp.data.custom_id.starts_with(&ctx_id.to_string()))
+            .await
+    {
+        debug!("Got button interaction: {:?}", button);
+        let interaction_id = button.data.custom_id.clone();
+        if interaction_id == prev_button_id {
+            page = page.checked_sub(1).unwrap_or(pages - 1)
+        } else if interaction_id == next_button_id {
+            page += 1;
+            if page >= pages {
+                page = 0;
+            }
+        }
+        // else if interaction_id == refresh_button_id {}
+        else {
+            continue;
+        }
+
+        let footer = get_footer(&fields, page, pages);
+        let fields = get_embed_data(&fields, page);
+
+        let response = button
+            .create_interaction_response(ctx, |ir| {
+                ir.kind(poise::serenity_prelude::InteractionResponseType::UpdateMessage)
+                    .interaction_response_data(|ird| {
+                        ird.embed(|ce| ce.fields(fields).footer(|f| f.text(footer)))
+                    })
+            })
+            .await;
+
+        if let Err(e) = response {
+            debug!("{:?}", e);
         }
     }
+}
+
+fn get_embed_data(fields: &Vec<TodoEntry>, page: u32) -> Vec<(String, String, bool)> {
+    let skip = page * DISCORD_EMBED_FIELDS_LIMIT;
+    let new_fields: Vec<(String, String, bool)> = fields
+        .into_iter()
+        .skip(skip.try_into().unwrap())
+        .map(|entry| {
+            let mut title = format!("[{}]", entry.id);
+            if entry.completed {
+                title = format!("{title} [DONE]");
+            }
+            if let Some(nick) = &entry.assignee {
+                title = format!("{title} - {nick}");
+            };
+            (title, entry.text.clone(), false)
+        })
+        .take(DISCORD_EMBED_FIELDS_LIMIT as usize)
+        .collect();
+    new_fields
+}
+
+fn get_footer(fields: &Vec<TodoEntry>, page: u32, pages: u32) -> String {
+    let total = fields.iter().filter(|te| !te.completed).count();
+    let footer = format!("Page {}/{pages}: {total} uncompleted TODOs", page + 1);
+    footer
 }

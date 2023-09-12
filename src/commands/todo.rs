@@ -514,7 +514,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
 
     while let Some(button) =
         poise::serenity_prelude::CollectComponentInteraction::new(ctx.serenity_context())
-            .timeout(Duration::from_secs(60 * 3))
+            .timeout(Duration::from_secs(60 * 5))
             .filter(move |comp| comp.data.custom_id.starts_with(&ctx_id.to_string()))
             .await
     {

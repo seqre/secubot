@@ -7,7 +7,7 @@ pub mod ping;
 #[allow(clippy::cast_sign_loss)]
 pub mod todo;
 
-pub const DISCORD_EMBED_FIELDS_LIMIT: u32 = 15;
+pub const DISCORD_EMBED_FIELDS_LIMIT: u32 = 12;
 
 #[poise::command(track_edits, slash_command)]
 pub async fn help(

@@ -138,6 +138,11 @@ pub async fn todo(_ctx: Context<'_>) -> Result<()> {
 // TODO: division of responsibilites, extract database manipulations to other
 // functions
 
+struct QueryData {
+    completed: bool,
+    todo_assignee: Option<Member>,
+}
+
 /// List TODO entries
 #[poise::command(slash_command)]
 pub async fn list(
@@ -147,23 +152,38 @@ pub async fn list(
     completed: bool,
     #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
 ) -> Result<()> {
+    let query_data = QueryData {
+        completed,
+        todo_assignee,
+    };
+    let data = get_todos(ctx, &query_data).await;
+
+    match data {
+        EmbedData::Text(text) => respond_text(ctx, text, false).await,
+        EmbedData::Fields(fields) => respond_fields(ctx, fields, query_data).await,
+    };
+
+    Ok(())
+}
+
+async fn get_todos(ctx: Context<'_>, query_data: &QueryData) -> EmbedData {
     use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
 
     let mut query = todos
         .into_boxed()
         .filter(channel_id.eq(i64::from(ctx.channel_id())));
 
-    if !completed {
+    if !query_data.completed {
         query = query.filter(completion_date.is_null());
     };
 
-    if let Some(member) = todo_assignee {
+    if let Some(member) = &query_data.todo_assignee {
         query = query.filter(assignee.eq(member.user.id.0 as i64));
     };
 
     let results = query.load::<Todo>(&mut ctx.data().db.get().unwrap());
 
-    let data = match results {
+    match results {
         Ok(todo_list) => {
             let mut output: Vec<TodoEntry> = vec![];
             let mut todos_stream = stream::iter(todo_list);
@@ -182,11 +202,7 @@ pub async fn list(
         }
         Err(NotFound) => EmbedData::Text("Not found.".to_string()),
         Err(_) => EmbedData::Text("Listing TODOs failed.".to_string()),
-    };
-
-    respond(ctx, data, false).await;
-
-    Ok(())
+    }
 }
 
 /// Add TODO entry
@@ -199,7 +215,7 @@ pub async fn add(
     use crate::schema::todos::dsl::todos;
 
     let data = if content.len() > 1024 {
-        EmbedData::Text("Content can't have more than 1024 characters.".to_string())
+        "Content can't have more than 1024 characters.".to_string()
     } else {
         let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
@@ -223,19 +239,17 @@ pub async fn add(
             .execute(&mut ctx.data().db.get().unwrap());
 
         match result {
-            Ok(_) => EmbedData::Text(
-                MessageBuilder::new()
-                    .push(format!("TODO [{}] (", &new_id))
-                    .push_mono_safe(&text)
-                    .push(format!(") added and assigned to {nickname}."))
-                    .build(),
-            ),
-            Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-            Err(_) => EmbedData::Text("Adding TODO failed.".to_string()),
+            Ok(_) => MessageBuilder::new()
+                .push(format!("TODO [{}] (", &new_id))
+                .push_mono_safe(&text)
+                .push(format!(") added and assigned to {nickname}."))
+                .build(),
+            Err(NotFound) => "Not found.".to_string(),
+            Err(_) => "Adding TODO failed.".to_string(),
         }
     };
 
-    respond(ctx, data, false).await;
+    respond_text(ctx, data, false).await;
 
     Ok(())
 }
@@ -252,18 +266,16 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
         .get_result(&mut ctx.data().db.get().unwrap());
 
     let data = match deleted {
-        Ok(deleted) => EmbedData::Text(
-            MessageBuilder::new()
-                .push(format!("TODO [{}] (", &todo_id))
-                .push_mono_safe(&deleted)
-                .push(") deleted.")
-                .build(),
-        ),
-        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-        Err(_) => EmbedData::Text("Deleting TODO failed.".to_string()),
+        Ok(deleted) => MessageBuilder::new()
+            .push(format!("TODO [{}] (", &todo_id))
+            .push_mono_safe(&deleted)
+            .push(") deleted.")
+            .build(),
+        Err(NotFound) => "Not found.".to_string(),
+        Err(_) => "Deleting TODO failed.".to_string(),
     };
 
-    respond(ctx, data, true).await;
+    respond_text(ctx, data, true).await;
 
     Ok(())
 }
@@ -283,18 +295,16 @@ pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64)
         .get_result(&mut ctx.data().db.get().unwrap());
 
     let data = match completed {
-        Ok(completed) => EmbedData::Text(
-            MessageBuilder::new()
-                .push(format!("TODO [{}] (", &todo_id))
-                .push_mono_safe(&completed)
-                .push(") completed.")
-                .build(),
-        ),
-        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-        Err(_) => EmbedData::Text("Completing TODO failed.".to_string()),
+        Ok(completed) => MessageBuilder::new()
+            .push(format!("TODO [{}] (", &todo_id))
+            .push_mono_safe(&completed)
+            .push(") completed.")
+            .build(),
+        Err(NotFound) => "Not found.".to_string(),
+        Err(_) => "Completing TODO failed.".to_string(),
     };
 
-    respond(ctx, data, false).await;
+    respond_text(ctx, data, false).await;
 
     Ok(())
 }
@@ -312,18 +322,16 @@ pub async fn uncomplete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i6
         .get_result(&mut ctx.data().db.get().unwrap());
 
     let data = match uncompleted {
-        Ok(uncompleted) => EmbedData::Text(
-            MessageBuilder::new()
-                .push(format!("TODO [{}] (", &todo_id))
-                .push_mono_safe(&uncompleted)
-                .push(") uncompleted.")
-                .build(),
-        ),
-        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-        Err(_) => EmbedData::Text("Uncompleting TODO failed.".to_string()),
+        Ok(uncompleted) => MessageBuilder::new()
+            .push(format!("TODO [{}] (", &todo_id))
+            .push_mono_safe(&uncompleted)
+            .push(") uncompleted.")
+            .build(),
+        Err(NotFound) => "Not found.".to_string(),
+        Err(_) => "Uncompleting TODO failed.".to_string(),
     };
 
-    respond(ctx, data, true).await;
+    respond_text(ctx, data, true).await;
 
     Ok(())
 }
@@ -351,18 +359,16 @@ pub async fn assign(
         .get_result(&mut ctx.data().db.get().unwrap());
 
     let data = match reassigned {
-        Ok(reassigned) => EmbedData::Text(
-            MessageBuilder::new()
-                .push(format!("TODO [{}] (", &todo_id))
-                .push_mono_safe(&reassigned)
-                .push(format!(") reassigned to {nickname}."))
-                .build(),
-        ),
-        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-        Err(_) => EmbedData::Text("Assigning TODO failed.".to_string()),
+        Ok(reassigned) => MessageBuilder::new()
+            .push(format!("TODO [{}] (", &todo_id))
+            .push_mono_safe(&reassigned)
+            .push(format!(") reassigned to {nickname}."))
+            .build(),
+        Err(NotFound) => "Not found.".to_string(),
+        Err(_) => "Assigning TODO failed.".to_string(),
     };
 
-    respond(ctx, data, true).await;
+    respond_text(ctx, data, true).await;
 
     Ok(())
 }
@@ -387,18 +393,16 @@ pub async fn rmove(
         .get_result(&mut ctx.data().db.get().unwrap());
 
     let data = match moved {
-        Ok(moved) => EmbedData::Text(
-            MessageBuilder::new()
-                .push(format!("TODO [{}] (", &todo_id))
-                .push_mono_safe(&moved)
-                .push(format!(") moved to {}.", new_channel.name()))
-                .build(),
-        ),
-        Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-        Err(_) => EmbedData::Text("Moving TODO failed.".to_string()),
+        Ok(moved) => MessageBuilder::new()
+            .push(format!("TODO [{}] (", &todo_id))
+            .push_mono_safe(&moved)
+            .push(format!(") moved to {}.", new_channel.name()))
+            .build(),
+        Err(NotFound) => "Not found.".to_string(),
+        Err(_) => "Moving TODO failed.".to_string(),
     };
 
-    respond(ctx, data, false).await;
+    respond_text(ctx, data, false).await;
 
     Ok(())
 }
@@ -413,7 +417,7 @@ pub async fn edit(
     use crate::schema::todos::dsl::{channel_id, id, todo, todos};
 
     let data = if content.len() > 1024 {
-        EmbedData::Text("Content can't have more than 1024 characters.".to_string())
+        "Content can't have more than 1024 characters.".to_string()
     } else {
         let text = content.replace('@', "@\u{200B}").replace('`', "'");
 
@@ -425,19 +429,17 @@ pub async fn edit(
             .get_result(&mut ctx.data().db.get().unwrap());
 
         match edited {
-            Ok(edited) => EmbedData::Text(
-                MessageBuilder::new()
-                    .push(format!("TODO [{}] edited to (", &todo_id))
-                    .push_mono_safe(&edited)
-                    .push(").".to_string())
-                    .build(),
-            ),
-            Err(NotFound) => EmbedData::Text("Not found.".to_string()),
-            Err(_) => EmbedData::Text("Adding TODO failed.".to_string()),
+            Ok(edited) => MessageBuilder::new()
+                .push(format!("TODO [{}] edited to (", &todo_id))
+                .push_mono_safe(&edited)
+                .push(").".to_string())
+                .build(),
+            Err(NotFound) => "Not found.".to_string(),
+            Err(_) => "Adding TODO failed.".to_string(),
         }
     };
 
-    respond(ctx, data, true).await;
+    respond_text(ctx, data, true).await;
 
     Ok(())
 }
@@ -456,13 +458,6 @@ enum EmbedData {
     Fields(Vec<TodoEntry>),
 }
 
-async fn respond(ctx: Context<'_>, data: EmbedData, ephemeral: bool) {
-    match data {
-        EmbedData::Text(text) => respond_text(ctx, text, ephemeral).await,
-        EmbedData::Fields(fields) => respond_fields(ctx, fields).await,
-    }
-}
-
 async fn respond_text(ctx: Context<'_>, text: String, ephemeral: bool) {
     let response = ctx
         .send(|reply| {
@@ -476,11 +471,11 @@ async fn respond_text(ctx: Context<'_>, text: String, ephemeral: bool) {
         debug!("{:?}", e);
     }
 }
-async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>) {
+async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: QueryData) {
     let ctx_id = ctx.id();
     let prev_button_id = format!("{}prev", ctx_id);
     let next_button_id = format!("{}next", ctx_id);
-    // let refresh_button_id = format!("{}refresh", ctx_id);
+    let refresh_button_id = format!("{}refresh", ctx_id);
 
     let mut fields = fields;
     let mut page = 0;
@@ -500,11 +495,11 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>) {
             reply.components(|comp| {
                 comp.create_action_row(|ar| {
                     ar.create_button(|cb| cb.custom_id(&prev_button_id).emoji('◀'))
-                        // .create_button(|cb| {
-                        //     cb.custom_id(&refresh_button_id)
-                        //         .label("Refresh")
-                        //         .style(ButtonStyle::Secondary)
-                        // })
+                        .create_button(|cb| {
+                            cb.custom_id(&refresh_button_id)
+                                .label("Refresh")
+                                .style(ButtonStyle::Secondary)
+                        })
                         .create_button(|cb| cb.custom_id(&next_button_id).emoji('▶'))
                 })
             });
@@ -532,9 +527,32 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>) {
             if page >= pages {
                 page = 0;
             }
-        }
-        // else if interaction_id == refresh_button_id {}
-        else {
+        } else if interaction_id == refresh_button_id {
+            let data = get_todos(ctx, &query_data).await;
+            match data {
+                EmbedData::Text(text) => {
+                    let response = button
+                        .create_interaction_response(ctx, |ir| {
+                            ir.kind(poise::serenity_prelude::InteractionResponseType::UpdateMessage)
+                                .interaction_response_data(|ird| {
+                                    ird.embed(|ce| ce.description(text))
+                                })
+                        })
+                        .await;
+
+                    if let Err(e) = response {
+                        debug!("{:?}", e);
+                    }
+
+                    continue;
+                }
+                EmbedData::Fields(_fields) => {
+                    fields = _fields;
+                    pages = fields.len().div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize) as u32;
+                    page = 0;
+                }
+            }
+        } else {
             continue;
         }
 
@@ -545,7 +563,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>) {
             .create_interaction_response(ctx, |ir| {
                 ir.kind(poise::serenity_prelude::InteractionResponseType::UpdateMessage)
                     .interaction_response_data(|ird| {
-                        ird.embed(|ce| ce.fields(fields).footer(|f| f.text(footer)))
+                        ird.embed(|ce| ce.title("TODOs").fields(fields).footer(|f| f.text(footer)))
                     })
             })
             .await;

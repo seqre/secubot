@@ -574,10 +574,10 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
     }
 }
 
-fn get_embed_data(fields: &Vec<TodoEntry>, page: u32) -> Vec<(String, String, bool)> {
+fn get_embed_data(fields: &[TodoEntry], page: u32) -> Vec<(String, String, bool)> {
     let skip = page * DISCORD_EMBED_FIELDS_LIMIT;
     let new_fields: Vec<(String, String, bool)> = fields
-        .into_iter()
+        .iter()
         .skip(skip.try_into().unwrap())
         .map(|entry| {
             let mut title = format!("[{}]", entry.id);
@@ -594,7 +594,7 @@ fn get_embed_data(fields: &Vec<TodoEntry>, page: u32) -> Vec<(String, String, bo
     new_fields
 }
 
-fn get_footer(fields: &Vec<TodoEntry>, page: u32, pages: u32) -> String {
+fn get_footer(fields: &[TodoEntry], page: u32, pages: u32) -> String {
     let total = fields.iter().filter(|te| !te.completed).count();
     let footer = format!("Page {}/{pages}: {total} uncompleted TODOs", page + 1);
     footer

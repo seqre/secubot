@@ -18,9 +18,12 @@ use diesel::{
 };
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use poise::serenity_prelude::{
-    ButtonStyle, ChannelId, CreateEmbed, GuildChannel, Member, MessageBuilder,
-    MessageComponentInteraction, UserId,
+use poise::{
+    serenity_prelude::{
+        ButtonStyle, ChannelId, CreateEmbed, Error, GuildChannel, Member, MessageBuilder,
+        MessageComponentInteraction, UserId,
+    },
+    ReplyHandle,
 };
 use time::{format_description, format_description::FormatItem, OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
@@ -508,13 +511,18 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
         })
         .await;
 
-    if let Err(e) = response {
-        debug!("{:?}", e);
-    }
+    let mut message = match response {
+        Ok(reply_handle) => reply_handle.into_message().await.unwrap(),
+        Err(e) => {
+            debug!("{:?}", e);
+            return;
+        }
+    };
 
     while let Some(button) =
         poise::serenity_prelude::CollectComponentInteraction::new(ctx.serenity_context())
             .timeout(Duration::from_secs(60 * 5))
+            .message_id(message.id)
             .filter(move |comp| comp.data.custom_id.starts_with(&ctx_id.to_string()))
             .await
     {
@@ -570,6 +578,21 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
         if let Err(e) = response {
             debug!("{:?}", e);
         }
+    }
+
+    page = 0;
+    let footer = get_footer(&fields, page, pages);
+    let fields = get_embed_data(&fields, page);
+
+    let response = message
+        .edit(ctx, |em| {
+            em.embed(|ce| ce.title("TODOs").fields(fields).footer(|f| f.text(footer)))
+                .components(|cc| cc)
+        })
+        .await;
+
+    if let Err(e) = response {
+        debug!("{:?}", e);
     }
 }
 

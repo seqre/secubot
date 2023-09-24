@@ -1,3 +1,7 @@
+use std::sync::{LazyLock, OnceLock};
+
+use regex::Regex;
+
 use crate::{Context, Result};
 
 pub mod changelog;
@@ -8,6 +12,8 @@ pub mod ping;
 pub mod todo;
 
 pub const DISCORD_EMBED_FIELDS_LIMIT: u32 = 12;
+
+static USER_PING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@(\d+)>").unwrap());
 
 #[poise::command(track_edits, slash_command)]
 pub async fn help(

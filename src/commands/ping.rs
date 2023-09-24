@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write,
-    sync::{Arc, OnceLock},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -17,12 +17,10 @@ use tokio::{
 };
 use tracing::debug;
 
-use crate::{Context, Result};
+use crate::{commands::USER_PING_REGEX, Context, Result};
 
 const PING_CHANNEL_BUFFER: usize = 15;
 const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
-
-static PING_REGEX: OnceLock<Regex> = OnceLock::new();
 
 #[derive(Debug)]
 pub struct PingData {
@@ -115,9 +113,8 @@ pub async fn stop(ctx: Context<'_>) -> Result<()> {
 }
 
 fn input_to_users(input: &str) -> HashSet<UserId> {
-    let re = PING_REGEX.get_or_init(|| Regex::new(r"<@(\d+)>").unwrap());
-
-    re.captures_iter(input)
+    USER_PING_REGEX
+        .captures_iter(input)
         .map(|cap| {
             let id = &cap[1];
             let id: u64 = id.parse().unwrap();

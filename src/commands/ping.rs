@@ -1,11 +1,10 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 
-use lazy_static::lazy_static;
 use poise::serenity_prelude::{ChannelId, Http, UserId};
 use regex::Regex;
 use tokio::{
@@ -22,6 +21,8 @@ use crate::{Context, Result};
 
 const PING_CHANNEL_BUFFER: usize = 15;
 const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
+
+static PING_REGEX: OnceLock<Regex> = OnceLock::new();
 
 #[derive(Debug)]
 pub struct PingData {
@@ -114,11 +115,9 @@ pub async fn stop(ctx: Context<'_>) -> Result<()> {
 }
 
 fn input_to_users(input: &str) -> HashSet<UserId> {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"<@(\d+)>").unwrap();
-    }
+    let re = PING_REGEX.get_or_init(|| Regex::new(r"<@(\d+)>").unwrap());
 
-    RE.captures_iter(input)
+    re.captures_iter(input)
         .map(|cap| {
             let id = &cap[1];
             let id: u64 = id.parse().unwrap();

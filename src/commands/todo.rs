@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicI32, Ordering},
-        Mutex,
+        Mutex, OnceLock,
     },
     time::Duration,
 };
@@ -17,7 +17,6 @@ use diesel::{
     result::{Error::NotFound, QueryResult},
 };
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use poise::{
     async_trait,
     serenity_prelude::{
@@ -35,10 +34,7 @@ use crate::{
     Conn, Context, Result,
 };
 
-lazy_static! {
-    static ref TIME_FORMAT: Vec<FormatItem<'static>> =
-        format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
-}
+static TIME_FORMAT: OnceLock<Vec<FormatItem<'static>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum Priority {
@@ -164,6 +160,10 @@ impl TodoData {
                 (ChannelId(chnl as u64), AtomicI32::new(biggest_id + 1))
             })
             .collect::<HashMap<_, _>>();
+
+        let _ = TIME_FORMAT.set(
+            format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap(),
+        );
 
         Self {
             iterators: Mutex::new(iterators),
@@ -303,7 +303,9 @@ pub async fn add(
     let data = if content.len() > 1024 {
         "Content can't have more than 1024 characters.".to_string()
     } else {
-        let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
+        let time = OffsetDateTime::now_utc()
+            .format(&TIME_FORMAT.get().unwrap())
+            .unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let text = content.replace('@', "@\u{200B}").replace('`', "'");
         let nickname = match &assignee {
@@ -374,7 +376,9 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
 pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
     use crate::schema::todos::dsl::{channel_id, completion_date, id, todo, todos};
 
-    let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
+    let time = OffsetDateTime::now_utc()
+        .format(&TIME_FORMAT.get().unwrap())
+        .unwrap();
 
     let completed: QueryResult<String> = diesel::update(todos)
         .filter(channel_id.eq(i64::from(ctx.channel_id())))

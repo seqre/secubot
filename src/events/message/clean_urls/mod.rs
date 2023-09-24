@@ -1,4 +1,5 @@
-use lazy_static::lazy_static;
+use std::cell::LazyCell;
+
 use regex::Regex;
 use serenity::utils::MessageBuilder;
 use url_encoded_data::UrlEncodedData;
@@ -8,9 +9,7 @@ mod trackers;
 use self::trackers::TRACKERS;
 
 pub fn clean_urls(content: &str) -> String {
-    lazy_static! {
-        static ref RE: Regex = Regex::new(r"http[s]?://[\S]*").unwrap();
-    }
+    static RE: LazyCell<Regex> = LazyCell::new(|| Regex::new(r#"http[s]?://[\S]*"#).unwrap());
 
     let urls: Vec<_> = RE
         .find_iter(content)

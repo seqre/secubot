@@ -1,4 +1,5 @@
 #![feature(int_roundings)]
+#![feature(lazy_cell)]
 
 use diesel::{
     r2d2::{ConnectionManager, Pool},

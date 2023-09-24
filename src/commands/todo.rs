@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicI32, Ordering},
-        Arc, Mutex,
+        Mutex,
     },
     time::Duration,
 };
@@ -19,11 +19,11 @@ use diesel::{
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use poise::{
+    async_trait,
     serenity_prelude::{
-        ButtonStyle, ChannelId, CreateEmbed, Error, GuildChannel, Member, MessageBuilder,
-        MessageComponentInteraction, UserId,
+        json, ButtonStyle, ChannelId, GuildChannel, Member, MessageBuilder, UserId,
     },
-    ReplyHandle,
+    SlashArgument,
 };
 use time::{format_description, format_description::FormatItem, OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
@@ -40,12 +40,85 @@ lazy_static! {
         format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Priority {
+    None,
+    Low,
+    Medium,
+    High,
+}
+
+impl Priority {
+    const VALUES: [&'static str; 4] = ["None", "Low", "Medium", "High"];
+}
+
+impl From<i32> for Priority {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => Priority::None,
+            1 => Priority::Low,
+            2 => Priority::Medium,
+            3 => Priority::High,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl std::fmt::Display for Priority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{}", Priority::VALUES[*self as usize])
+    }
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Priority::None
+    }
+}
+
+#[async_trait]
+impl SlashArgument for Priority {
+    fn choices() -> Vec<poise::CommandParameterChoice> {
+        Priority::VALUES
+            .iter()
+            .map(|&s| poise::CommandParameterChoice {
+                name: String::from(s),
+                localizations: Default::default(),
+            })
+            .collect()
+    }
+
+    fn create(builder: &mut poise::serenity_prelude::CreateApplicationCommandOption) {
+        builder.kind(poise::serenity_prelude::CommandOptionType::Number);
+    }
+
+    async fn extract<'life0, 'life1, 'life2>(
+        _ctx: &'life0 poise::serenity_prelude::Context,
+        _interaction: poise::ApplicationCommandOrAutocompleteInteraction<'life1>,
+        value: &'life2 poise::serenity_prelude::json::Value,
+    ) -> core::result::Result<Self, poise::SlashArgError>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        'life2: 'async_trait,
+    {
+        let priority = if let json::Value::Number(num) = value {
+            num.as_f64().unwrap() as i32
+        } else {
+            0
+        };
+
+        Ok(Priority::from(priority))
+    }
+}
+
 #[derive(Debug, PartialEq)]
 struct TodoEntry {
     id: i32,
     assignee: Option<String>,
     text: String,
     completed: bool,
+    priority: i32,
 }
 
 impl TodoEntry {
@@ -54,6 +127,7 @@ impl TodoEntry {
         assignee: Option<i64>,
         text: String,
         completed: bool,
+        priority: i32,
         ctx: Context<'_>,
     ) -> Self {
         let assignee = match assignee {
@@ -71,6 +145,7 @@ impl TodoEntry {
             assignee,
             text,
             completed,
+            priority,
         }
     }
 }
@@ -120,6 +195,7 @@ impl TodoData {
 #[doc = "- `/todo assign {id} {new_assignee}` - assignees TODO specified by `id` to `new_assignee`"]
 #[doc = "- `/todo move {id} {new_channel}` - moves TODO specified by `id` to `new_channel`"]
 #[doc = "- `/todo edit {id} {new_content}` - replaces content of TODO specified by `id` to {new_content}"]
+#[doc = "- `/todo set_priority {id} {new_priority}` - sets priority of TODO specified by `id` to `new_priority`"]
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
@@ -131,7 +207,8 @@ impl TodoData {
         "delete",
         "assign",
         "rmove",
-        "edit"
+        "edit",
+        "set_priority"
     )
 )]
 pub async fn todo(_ctx: Context<'_>) -> Result<()> {
@@ -144,6 +221,7 @@ pub async fn todo(_ctx: Context<'_>) -> Result<()> {
 struct QueryData {
     completed: bool,
     todo_assignee: Option<Member>,
+    sort_by_priority: bool,
 }
 
 /// List TODO entries
@@ -154,10 +232,14 @@ pub async fn list(
     #[flag]
     completed: bool,
     #[description = "Show only TODOs assigned to"] todo_assignee: Option<Member>,
+    #[description = "Sort TODOs by priority"]
+    #[flag]
+    sort_by_priority: bool,
 ) -> Result<()> {
     let query_data = QueryData {
         completed,
         todo_assignee,
+        sort_by_priority,
     };
     let data = get_todos(ctx, &query_data).await;
 
@@ -170,7 +252,7 @@ pub async fn list(
 }
 
 async fn get_todos(ctx: Context<'_>, query_data: &QueryData) -> EmbedData {
-    use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
+    use crate::schema::todos::dsl::*;
 
     let mut query = todos
         .into_boxed()
@@ -193,8 +275,13 @@ async fn get_todos(ctx: Context<'_>, query_data: &QueryData) -> EmbedData {
 
             while let Some(t) = todos_stream.next().await {
                 let completed = t.completion_date.is_some();
-                let entry = TodoEntry::new(t.id, t.assignee, t.todo, completed, ctx).await;
+                let entry =
+                    TodoEntry::new(t.id, t.assignee, t.todo, completed, t.priority, ctx).await;
                 output.push(entry);
+            }
+
+            if query_data.sort_by_priority {
+                output.sort_by_key(|entry| -entry.priority);
             }
 
             if output.is_empty() {
@@ -214,6 +301,7 @@ pub async fn add(
     ctx: Context<'_>,
     #[description = "TODO content"] content: String,
     #[description = "TODO assignee"] assignee: Option<Member>,
+    #[description = "TODO priority"] priority: Option<Priority>,
 ) -> Result<()> {
     use crate::schema::todos::dsl::todos;
 
@@ -229,12 +317,15 @@ pub async fn add(
         };
         let assignee = assignee.map(|m| m.user.id.0 as i64);
 
+        let priority = priority.unwrap_or_default() as i32;
+
         let new_todo = NewTodo {
             channel_id: &(i64::from(ctx.channel_id())),
             id: &new_id,
             todo: &text,
             creation_date: &time,
             assignee,
+            priority,
         };
 
         let result = diesel::insert_into(todos)
@@ -447,6 +538,41 @@ pub async fn edit(
     Ok(())
 }
 
+/// Change priority of TODO entry
+#[poise::command(slash_command)]
+pub async fn set_priority(
+    ctx: Context<'_>,
+    #[description = "TODO id"] todo_id: i64,
+    #[description = "TODO new priority"] new_priority: Option<Priority>,
+) -> Result<()> {
+    use crate::schema::todos::dsl::{channel_id, id, priority, todo, todos};
+
+    let new_priority = new_priority.unwrap_or_default();
+    let new_priority_int = new_priority as i32;
+
+    let reassigned: QueryResult<String> = diesel::update(todos)
+        .filter(channel_id.eq(i64::from(ctx.channel_id())))
+        .filter(id.eq(todo_id as i32))
+        .set(priority.eq(new_priority_int))
+        .returning(todo)
+        .get_result(&mut ctx.data().db.get().unwrap());
+
+    let data = match reassigned {
+        Ok(reassigned) => MessageBuilder::new()
+            .push(format!("TODO [{}] (", &todo_id))
+            .push_mono_safe(&reassigned)
+            .push(format!(") new priority is {new_priority}."))
+            .build(),
+
+        Err(NotFound) => "Not found.".to_string(),
+        Err(_) => "Assigning TODO failed.".to_string(),
+    };
+
+    respond_text(ctx, data, true).await;
+
+    Ok(())
+}
+
 fn get_member_nickname(member: &Member) -> String {
     if let Some(nick) = &member.nick {
         return nick.to_string();
@@ -480,6 +606,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
     let next_button_id = format!("{}next", ctx_id);
     let refresh_button_id = format!("{}refresh", ctx_id);
 
+    let title = get_title(&query_data);
     let mut fields = fields;
     let mut page = 0;
     let mut pages = fields.len().div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize) as u32;
@@ -490,7 +617,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
                 let footer = get_footer(&fields, page, pages);
                 let fields = get_embed_data(&fields, page);
                 embed
-                    .title("TODOs")
+                    .title(&title)
                     .fields(fields)
                     .footer(|f| f.text(footer))
             });
@@ -570,7 +697,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
             .create_interaction_response(ctx, |ir| {
                 ir.kind(poise::serenity_prelude::InteractionResponseType::UpdateMessage)
                     .interaction_response_data(|ird| {
-                        ird.embed(|ce| ce.title("TODOs").fields(fields).footer(|f| f.text(footer)))
+                        ird.embed(|ce| ce.title(&title).fields(fields).footer(|f| f.text(footer)))
                     })
             })
             .await;
@@ -586,7 +713,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
 
     let response = message
         .edit(ctx, |em| {
-            em.embed(|ce| ce.title("TODOs").fields(fields).footer(|f| f.text(footer)))
+            em.embed(|ce| ce.title(title).fields(fields).footer(|f| f.text(footer)))
                 .components(|cc| cc)
         })
         .await;
@@ -602,7 +729,11 @@ fn get_embed_data(fields: &[TodoEntry], page: u32) -> Vec<(String, String, bool)
         .iter()
         .skip(skip.try_into().unwrap())
         .map(|entry| {
-            let mut title = format!("[{}]", entry.id);
+            let mut title = format!("[ {} ]", entry.id);
+            if entry.priority != 0 {
+                let priority = Priority::from(entry.priority);
+                title = format!("{title} {priority}");
+            }
             if entry.completed {
                 title = format!("{title} [DONE]");
             }
@@ -620,4 +751,22 @@ fn get_footer(fields: &[TodoEntry], page: u32, pages: u32) -> String {
     let total = fields.iter().filter(|te| !te.completed).count();
     let footer = format!("Page {}/{pages}: {total} uncompleted TODOs", page + 1);
     footer
+}
+
+fn get_title(query_data: &QueryData) -> String {
+    let mut title = String::from("TODOs");
+
+    if let Some(assignee) = &query_data.todo_assignee {
+        title = format!("{title} assigned to {}", assignee.user.name)
+    }
+
+    if query_data.completed {
+        title = format!("{title} (w/ completed)");
+    }
+
+    if query_data.sort_by_priority {
+        title = format!("{title} (sorted by priority)")
+    }
+
+    title
 }

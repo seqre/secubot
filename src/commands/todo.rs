@@ -40,8 +40,9 @@ lazy_static! {
         format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum Priority {
+    #[default]
     None,
     Low,
     Medium,
@@ -70,12 +71,6 @@ impl std::fmt::Display for Priority {
     }
 }
 
-impl Default for Priority {
-    fn default() -> Self {
-        Priority::None
-    }
-}
-
 #[async_trait]
 impl SlashArgument for Priority {
     fn choices() -> Vec<poise::CommandParameterChoice> {
@@ -83,7 +78,7 @@ impl SlashArgument for Priority {
             .iter()
             .map(|&s| poise::CommandParameterChoice {
                 name: String::from(s),
-                localizations: Default::default(),
+                localizations: HashMap::default(),
             })
             .collect()
     }
@@ -252,7 +247,7 @@ pub async fn list(
 }
 
 async fn get_todos(ctx: Context<'_>, query_data: &QueryData) -> EmbedData {
-    use crate::schema::todos::dsl::*;
+    use crate::schema::todos::dsl::{assignee, channel_id, completion_date, todos};
 
     let mut query = todos
         .into_boxed()
@@ -600,6 +595,7 @@ async fn respond_text(ctx: Context<'_>, text: String, ephemeral: bool) {
         debug!("{:?}", e);
     }
 }
+#[allow(clippy::too_many_lines)]
 async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: QueryData) {
     let ctx_id = ctx.id();
     let prev_button_id = format!("{}prev", ctx_id);
@@ -655,7 +651,7 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
     {
         let interaction_id = button.data.custom_id.clone();
         if interaction_id == prev_button_id {
-            page = page.checked_sub(1).unwrap_or(pages - 1)
+            page = page.checked_sub(1).unwrap_or(pages - 1);
         } else if interaction_id == next_button_id {
             page += 1;
             if page >= pages {
@@ -680,8 +676,8 @@ async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: Qu
 
                     continue;
                 }
-                EmbedData::Fields(_fields) => {
-                    fields = _fields;
+                EmbedData::Fields(embed_fields) => {
+                    fields = embed_fields;
                     pages = fields.len().div_ceil(DISCORD_EMBED_FIELDS_LIMIT as usize) as u32;
                     page = 0;
                 }
@@ -757,7 +753,7 @@ fn get_title(query_data: &QueryData) -> String {
     let mut title = String::from("TODOs");
 
     if let Some(assignee) = &query_data.todo_assignee {
-        title = format!("{title} assigned to {}", assignee.user.name)
+        title = format!("{title} assigned to {}", assignee.user.name);
     }
 
     if query_data.completed {
@@ -765,7 +761,7 @@ fn get_title(query_data: &QueryData) -> String {
     }
 
     if query_data.sort_by_priority {
-        title = format!("{title} (sorted by priority)")
+        title = format!("{title} (sorted by priority)");
     }
 
     title

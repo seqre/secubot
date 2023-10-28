@@ -1,6 +1,6 @@
 use octocrab::Octocrab;
 
-use crate::{Context, Result};
+use crate::{Context, Result, VERSION};
 
 /// Get the latest changelog
 #[poise::command(slash_command)]
@@ -39,9 +39,7 @@ pub async fn changelog(ctx: Context<'_>) -> Result<()> {
 /// Get running version of the bot
 #[poise::command(slash_command)]
 pub async fn version(ctx: Context<'_>) -> Result<()> {
-    let version = env!("CARGO_PKG_VERSION");
-
-    ctx.say(format!("v{version}")).await?;
+    ctx.say(format!("v{VERSION}")).await?;
 
     Ok(())
 }

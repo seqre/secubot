@@ -31,6 +31,7 @@ mod settings;
 mod tasks;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 type Result<T> = anyhow::Result<T>;
 type Error = anyhow::Error;
@@ -74,6 +75,8 @@ async fn main() {
         // TODO: dirty way, find better solution
         .with_env_filter("secubot=debug")
         .init();
+
+    info!("Running v{VERSION}");
 
     let settings = Settings::new().expect("Missing configuration");
 

@@ -6,6 +6,7 @@ use crate::schema::todos;
 pub struct Todo {
     pub channel_id: i64,
     pub id: i32,
+    #[allow(clippy::struct_field_names)]
     pub todo: String,
     pub creation_date: String,
     pub completion_date: Option<String>,

@@ -6,7 +6,6 @@ use std::{
 };
 
 use poise::serenity_prelude::{ChannelId, Http, UserId};
-use regex::Regex;
 use tokio::{
     sync::{
         mpsc::{self, Receiver, Sender},

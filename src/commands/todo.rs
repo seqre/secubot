@@ -601,9 +601,9 @@ async fn respond_text(ctx: Context<'_>, text: String, ephemeral: bool) {
 #[allow(clippy::too_many_lines)]
 async fn respond_fields(ctx: Context<'_>, fields: Vec<TodoEntry>, query_data: QueryData) {
     let ctx_id = ctx.id();
-    let prev_button_id = format!("{}prev", ctx_id);
-    let next_button_id = format!("{}next", ctx_id);
-    let refresh_button_id = format!("{}refresh", ctx_id);
+    let prev_button_id = format!("{ctx_id}prev");
+    let next_button_id = format!("{ctx_id}next");
+    let refresh_button_id = format!("{ctx_id}refresh");
 
     let title = get_title(&query_data);
     let mut fields = fields;

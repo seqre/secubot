@@ -7,7 +7,7 @@ use diesel::{
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use poise::serenity_prelude as serenity;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
     commands::{changelog, ping, todo},
@@ -31,7 +31,7 @@ mod settings;
 mod tasks;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 type Result<T> = anyhow::Result<T>;
 type Error = anyhow::Error;
@@ -43,6 +43,7 @@ fn setup_db(db_url: &String) -> Conn {
     let pool =
         Pool::new(conn_man).unwrap_or_else(|_| panic!("Error creating pool for: {}", &db_url));
 
+    debug!("Running database migrations");
     match &pool.get().unwrap().run_pending_migrations(MIGRATIONS) {
         Ok(_) => info!("Database migrations completed"),
         Err(e) => error!("Database migrations error: {:?}", e),

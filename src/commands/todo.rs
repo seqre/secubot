@@ -307,7 +307,6 @@ pub async fn add(
             .format(&TIME_FORMAT.get().unwrap())
             .unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
-        let text = content.replace('@', "@\u{200B}").replace('`', "'");
         let nickname = match &assignee {
             Some(m) => get_member_nickname(m),
             None => "no one".to_string(),
@@ -319,7 +318,7 @@ pub async fn add(
         let new_todo = NewTodo {
             channel_id: &(i64::from(ctx.channel_id())),
             id: &new_id,
-            todo: &text,
+            todo: &content,
             creation_date: &time,
             assignee,
             priority,
@@ -332,7 +331,7 @@ pub async fn add(
         match result {
             Ok(_) => MessageBuilder::new()
                 .push(format!("TODO [{}] (", &new_id))
-                .push_mono_safe(&text)
+                .push_mono_safe(&content)
                 .push(format!(") added and assigned to {nickname}."))
                 .build(),
             Err(NotFound) => "Not found.".to_string(),

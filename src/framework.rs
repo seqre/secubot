@@ -7,7 +7,7 @@ use poise::{
 };
 use tracing::{debug, info};
 
-use crate::{ctx_data::CtxData, settings::Settings, tasks, Error, Result};
+use crate::{ctx_data::CtxData, settings::Features, tasks, Error, Result};
 
 pub async fn on_error(error: poise::FrameworkError<'_, CtxData, Error>) {
     // This is our custom error handler
@@ -30,7 +30,7 @@ pub async fn event_handler<'a>(
     ctx: &'a serenity::Context,
     event: &'a Event<'_>,
     _framework_context: FrameworkContext<'a, CtxData, Error>,
-    _ctx_data: &'a CtxData,
+    ctx_data: &'a CtxData,
 ) -> Result<()> {
     // debug!("Got an event in event handler: {:?}", event.name());
 
@@ -71,9 +71,15 @@ pub async fn event_handler<'a>(
             deleted_message_id,
             guild_id,
         } => {
-            if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
-                debug!("Error while sending <deleted>: {:#?}", e);
-            };
+            if ctx_data
+                .settings
+                .features
+                .contains(&Features::NotifyOnDeletedMessages)
+            {
+                if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
+                    debug!("Error while sending <deleted>: {:#?}", e);
+                };
+            }
         }
 
         #[allow(unused_variables)]
@@ -82,10 +88,16 @@ pub async fn event_handler<'a>(
             multiple_deleted_messages_ids,
             guild_id,
         } => {
-            let text = format!("<{}x deleted>", multiple_deleted_messages_ids.len());
-            if let Err(e) = channel_id.say(&ctx, &text).await {
-                debug!("Error while sending {}: {:?}", text, e);
-            };
+            if ctx_data
+                .settings
+                .features
+                .contains(&Features::NotifyOnDeletedMessages)
+            {
+                let text = format!("<{}x deleted>", multiple_deleted_messages_ids.len());
+                if let Err(e) = channel_id.say(&ctx, &text).await {
+                    debug!("Error while sending {}: {:?}", text, e);
+                };
+            }
         }
 
         _ => (),
@@ -97,7 +109,6 @@ pub async fn setup<'a>(
     ctx: &'a serenity::Context,
     _ready: &'a serenity::Ready,
     framework: &Framework<CtxData, Error>,
-    _settings: Settings,
     ctx_data: CtxData,
 ) -> Result<CtxData> {
     // let empty: &[poise::structs::Command<CtxData, Error>] = &[];

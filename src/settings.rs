@@ -1,14 +1,37 @@
-use std::env;
+use std::{collections::HashSet, env, hash::Hash};
 
 use config::{Config, ConfigError, Environment, File};
 use glob::glob;
 use serde_derive::Deserialize;
 use tracing::debug;
 
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub enum Features {
+    NotifyOnDeletedMessages,
+    PeriodicTodoReminders,
+}
+
+impl Features {
+    fn all() -> HashSet<Self> {
+        HashSet::from([
+            Features::NotifyOnDeletedMessages,
+            Features::PeriodicTodoReminders,
+        ])
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
 pub struct Database {
     pub url: String,
+}
+
+impl Default for Database {
+    fn default() -> Self {
+        Self {
+            url: "db.sqlite".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -31,8 +54,11 @@ pub struct Settings {
     // pub log_level: String,
     pub discord_token: String,
     // pub application_id: u64,
+    #[serde(default)]
     pub database: Database,
     // pub commands: Commands,
+    #[serde(default = "Features::all")]
+    pub features: HashSet<Features>,
 }
 
 impl Settings {

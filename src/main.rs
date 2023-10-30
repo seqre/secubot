@@ -83,10 +83,10 @@ async fn main() {
 
     let mut clean_settings = settings.clone();
     clean_settings.discord_token = String::from("<REDACTED>");
-    info!("Parsed configuration: {:?}", clean_settings);
+    info!("Parsed configuration: {:?}", &clean_settings);
 
     let conn = setup_db(&settings.database.url);
-    let ctx_data = CtxData::new(conn);
+    let ctx_data = CtxData::new(conn, clean_settings);
 
     let options = poise::FrameworkOptions {
         commands: vec![
@@ -108,9 +108,7 @@ async fn main() {
         .token(&settings.discord_token)
         .options(options)
         .intents(get_intents())
-        .setup(|ctx, ready, framework| {
-            Box::pin(framework::setup(ctx, ready, framework, settings, ctx_data))
-        })
+        .setup(|ctx, ready, framework| Box::pin(framework::setup(ctx, ready, framework, ctx_data)))
         .run()
         .await
         .unwrap();

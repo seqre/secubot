@@ -2,19 +2,19 @@ use std::sync::Arc;
 
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use itertools::Itertools;
-use poise::serenity_prelude::{async_trait, ChannelId, Http};
+use poise::serenity_prelude::{async_trait, futures, CacheHttp, ChannelId, Http};
 use tokio::time::Duration;
 
-use crate::{models::todo::Todo, tasks::Task, Conn};
+use crate::{ctx_data::CtxData, models::todo::Todo, settings::Feature, tasks::Task, Conn};
 
 pub struct TodoReminderTask {
-    db: Conn,
-    http: Arc<Http>,
+    ctx_data: Arc<CtxData>,
+    http: Arc<dyn CacheHttp>,
 }
 
 impl TodoReminderTask {
-    pub fn new(db: Conn, http: Arc<Http>) -> Self {
-        Self { db, http }
+    pub fn new(ctx_data: Arc<CtxData>, http: Arc<Http>) -> Self {
+        Self { ctx_data, http }
     }
 }
 
@@ -31,7 +31,7 @@ impl Task for TodoReminderTask {
 
         let results = todos
             .filter(completion_date.is_null())
-            .load::<Todo>(&mut self.db.get().unwrap());
+            .load::<Todo>(&mut self.ctx_data.db.get().unwrap());
 
         let channels: Vec<(ChannelId, usize)> = results
             .unwrap()
@@ -43,7 +43,7 @@ impl Task for TodoReminderTask {
 
         for (chnl, count) in channels {
             _ = chnl
-                .send_message(&self.http, |message| {
+                .send_message(&self.http.http(), |message| {
                     message.embed(|embed| {
                         embed.title("TODOs reminder");
                         embed.description(format!("There are {count} uncompleted TODOs here!"));

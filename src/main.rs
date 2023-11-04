@@ -1,6 +1,8 @@
 #![feature(int_roundings)]
 #![feature(lazy_cell)]
 
+use std::sync::Arc;
+
 use diesel::{
     r2d2::{ConnectionManager, Pool},
     sqlite::SqliteConnection,
@@ -35,7 +37,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 type Result<T> = anyhow::Result<T>;
 type Error = anyhow::Error;
-type Context<'a> = poise::Context<'a, CtxData, anyhow::Error>;
+type Context<'a> = poise::Context<'a, Arc<CtxData>, anyhow::Error>;
 type Conn = Pool<ConnectionManager<SqliteConnection>>;
 
 fn setup_db(db_url: &String) -> Conn {
@@ -86,7 +88,7 @@ async fn main() {
     info!("Parsed configuration: {:?}", &clean_settings);
 
     let conn = setup_db(&settings.database.url);
-    let ctx_data = CtxData::new(conn, clean_settings);
+    let ctx_data = Arc::new(CtxData::new(conn, clean_settings));
 
     let options = poise::FrameworkOptions {
         commands: vec![

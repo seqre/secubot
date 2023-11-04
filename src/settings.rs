@@ -1,21 +1,29 @@
-use std::{collections::HashSet, env, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    hash::Hash,
+    sync::Arc,
+};
 
 use config::{Config, ConfigError, Environment, File};
 use glob::glob;
+use poise::serenity_prelude::{Cache, CacheHttp, Channel, ChannelId, GuildId};
 use serde_derive::Deserialize;
 use tracing::debug;
 
+use crate::schema::hall_of_fame_tables::guild_id;
+
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
-pub enum Features {
+pub enum Feature {
     NotifyOnDeletedMessages,
     PeriodicTodoReminders,
 }
 
-impl Features {
+impl Feature {
     fn all() -> HashSet<Self> {
         HashSet::from([
-            Features::NotifyOnDeletedMessages,
-            Features::PeriodicTodoReminders,
+            Feature::NotifyOnDeletedMessages,
+            Feature::PeriodicTodoReminders,
         ])
     }
 }
@@ -34,18 +42,26 @@ impl Default for Database {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
-#[allow(unused)]
-pub struct Guild {
-    pub id: u64,
-    pub commands: Vec<String>,
-}
+//#[derive(Debug, Deserialize, Clone)]
+//#[allow(unused)]
+// pub struct Commands {
+//    pub globals: Vec<String>,
+//    pub guilds: Vec<Guild>,
+//}
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
-pub struct Commands {
-    pub globals: Vec<String>,
-    pub guilds: Vec<Guild>,
+pub struct BotSettings {
+    #[serde(default = "Feature::all")]
+    pub features: HashSet<Feature>,
+}
+
+impl Default for BotSettings {
+    fn default() -> Self {
+        Self {
+            features: Feature::all(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -56,9 +72,11 @@ pub struct Settings {
     // pub application_id: u64,
     #[serde(default)]
     pub database: Database,
+    #[serde(default)]
+    pub global: BotSettings,
+    #[serde(default)]
+    pub guilds: HashMap<GuildId, BotSettings>,
     // pub commands: Commands,
-    #[serde(default = "Features::all")]
-    pub features: HashSet<Features>,
 }
 
 impl Settings {
@@ -88,5 +106,24 @@ impl Settings {
             .build()?;
 
         config.try_deserialize()
+    }
+
+    pub async fn is_feature_enabled(
+        &self,
+        feature: &Feature,
+        cache_http: impl CacheHttp,
+        channel_id: &ChannelId,
+    ) -> bool {
+        let channel = channel_id.to_channel(&cache_http).await.ok();
+        let default = self.global.features.contains(feature);
+
+        if let Some(Channel::Guild(guild)) = channel {
+            self.guilds
+                .get(&guild.guild_id)
+                .map(|guild| guild.features.contains(feature))
+                .unwrap_or(default)
+        } else {
+            default
+        }
     }
 }

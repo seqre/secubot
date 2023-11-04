@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use poise::{
     serenity_prelude::{
         self as serenity, model::application::interaction::Interaction::ApplicationCommand,
@@ -7,9 +9,9 @@ use poise::{
 };
 use tracing::{debug, info};
 
-use crate::{ctx_data::CtxData, settings::Features, tasks, Error, Result};
+use crate::{ctx_data::CtxData, settings::Feature, tasks, Error, Result};
 
-pub async fn on_error(error: poise::FrameworkError<'_, CtxData, Error>) {
+pub async fn on_error(error: poise::FrameworkError<'_, Arc<CtxData>, Error>) {
     // This is our custom error handler
     // They are many errors that can occur, so we only handle the ones we want to
     // customize and forward the rest to the default handler
@@ -29,7 +31,7 @@ pub async fn on_error(error: poise::FrameworkError<'_, CtxData, Error>) {
 pub async fn event_handler<'a>(
     ctx: &'a serenity::Context,
     event: &'a Event<'_>,
-    _framework_context: FrameworkContext<'a, CtxData, Error>,
+    _framework_context: FrameworkContext<'a, Arc<CtxData>, Error>,
     ctx_data: &'a CtxData,
 ) -> Result<()> {
     // debug!("Got an event in event handler: {:?}", event.name());
@@ -73,8 +75,8 @@ pub async fn event_handler<'a>(
         } => {
             if ctx_data
                 .settings
-                .features
-                .contains(&Features::NotifyOnDeletedMessages)
+                .is_feature_enabled(&Feature::NotifyOnDeletedMessages, &ctx, channel_id)
+                .await
             {
                 if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
                     debug!("Error while sending <deleted>: {:#?}", e);
@@ -90,8 +92,8 @@ pub async fn event_handler<'a>(
         } => {
             if ctx_data
                 .settings
-                .features
-                .contains(&Features::NotifyOnDeletedMessages)
+                .is_feature_enabled(&Feature::NotifyOnDeletedMessages, &ctx, channel_id)
+                .await
             {
                 let text = format!("<{}x deleted>", multiple_deleted_messages_ids.len());
                 if let Err(e) = channel_id.say(&ctx, &text).await {
@@ -108,9 +110,9 @@ pub async fn event_handler<'a>(
 pub async fn setup<'a>(
     ctx: &'a serenity::Context,
     _ready: &'a serenity::Ready,
-    framework: &Framework<CtxData, Error>,
-    ctx_data: CtxData,
-) -> Result<CtxData> {
+    framework: &Framework<Arc<CtxData>, Error>,
+    ctx_data: Arc<CtxData>,
+) -> Result<Arc<CtxData>> {
     // let empty: &[poise::structs::Command<CtxData, Error>] = &[];
     poise::builtins::register_globally(ctx, &framework.options().commands).await?;
     // TODO: add this back at some point

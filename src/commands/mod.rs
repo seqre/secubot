@@ -11,7 +11,7 @@ pub mod ping;
 #[allow(clippy::cast_sign_loss)]
 pub mod todo;
 
-pub const DISCORD_EMBED_FIELDS_LIMIT: u32 = 12;
+pub const DISCORD_EMBED_FIELDS_LIMIT: u32 = 24;
 
 static USER_PING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@(\d+)>").unwrap());
 

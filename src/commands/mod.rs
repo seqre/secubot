@@ -5,6 +5,7 @@ use regex::Regex;
 use crate::{Context, Result};
 
 pub mod changelog;
+pub mod hall_of_fame;
 pub mod ping;
 
 #[allow(clippy::cast_precision_loss)]

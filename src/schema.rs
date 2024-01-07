@@ -34,4 +34,8 @@ diesel::table! {
 
 diesel::joinable!(hall_of_fame_entries -> hall_of_fame_tables (hof_id));
 
-diesel::allow_tables_to_appear_in_same_query!(hall_of_fame_entries, hall_of_fame_tables, todos,);
+diesel::allow_tables_to_appear_in_same_query!(
+    hall_of_fame_entries,
+    hall_of_fame_tables,
+    todos,
+);

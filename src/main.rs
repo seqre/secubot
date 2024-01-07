@@ -12,7 +12,7 @@ use poise::serenity_prelude as serenity;
 use tracing::{debug, error, info};
 
 use crate::{
-    commands::{changelog, ping, todo},
+    commands::{changelog, hall_of_fame, ping, todo},
     ctx_data::CtxData,
     settings::Settings,
 };
@@ -98,6 +98,7 @@ async fn main() {
             changelog::version(),
             ping::ping(),
             todo::todo(),
+            hall_of_fame::hof(),
         ],
         event_handler: |ctx, event, framework, data| {
             Box::pin(framework::event_handler(ctx, event, framework, data))

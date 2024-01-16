@@ -5,14 +5,14 @@ use std::{
 
 use diesel::{prelude::*, ExpressionMethods};
 use itertools::Itertools;
-use poise::serenity_prelude::{GuildId, User};
+use poise::serenity_prelude::{GuildId, MessageBuilder, User, UserId};
 use time::OffsetDateTime;
 use tokio::sync::RwLock;
-use tracing::{debug, info};
 
 use crate::{
+    commands::{DISCORD_EMBED_FIELDS_LIMIT, TIME_FORMAT},
     ctx_data::CtxData,
-    models::hall_of_fame::{NewEntry, NewTable, Table},
+    models::hall_of_fame::{Entry, NewEntry, NewTable, Table},
     Conn, Context, Error, Result,
 };
 
@@ -23,14 +23,8 @@ pub struct HofData {
 
 impl HofData {
     pub async fn add_table(&self, guild_id: GuildId, table: String) {
-        self.hofs
-            .write()
-            .await
-            .entry(guild_id)
-            .and_modify(|hofs| {
-                hofs.insert(table);
-            })
-            .or_default();
+        let mut hofs = self.hofs.write().await;
+        hofs.entry(guild_id).or_default().insert(table);
     }
 
     pub async fn get_hof_tables(&self, guild_id: &GuildId) -> HashSet<String> {
@@ -80,46 +74,125 @@ async fn autocomplete<'a>(ctx: Context<'_>, partial: &'a str) -> HashSet<String>
         .await
         .into_iter()
         .filter(|h| h.starts_with(partial))
+        .sorted()
         .collect()
 }
 
 /// List Hall of Fame tables
 #[poise::command(slash_command)]
-pub async fn show(ctx: Context<'_>, #[autocomplete = "autocomplete"] hof: String) -> Result<()> {
-    use crate::{
-        models::hall_of_fame::Entry,
-        schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*},
+pub async fn show(
+    ctx: Context<'_>,
+    #[autocomplete = "autocomplete"] hof: String,
+    user: Option<User>,
+) -> Result<()> {
+    let guild = ctx.guild_id().unwrap();
+
+    match user {
+        None => show_hof(ctx, guild, hof).await?,
+        Some(user_id) => show_user(ctx, guild, hof, user_id).await?,
     };
 
-    let guild = ctx.guild_id().unwrap();
+    Ok(())
+}
+
+async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
+    use crate::schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*};
 
     let hof = hall_of_fame_tables
         .filter(guild_id.eq::<i64>(guild.into()))
         .filter(title.eq(&hof))
         .first::<Table>(&mut ctx.data().db.get().unwrap())?;
 
-    debug!("{:#?}", hof);
-
-    ctx.reply(format!("{:?}", hof)).await?;
-    // TODO: embed
-
     let entries = hall_of_fame_entries
         .filter(hof_id.eq(hof.id))
         .load::<Entry>(&mut ctx.data().db.get().unwrap())?;
 
-    ctx.reply(format!("entries: {:?}", entries)).await?;
+    let entries: Vec<_> = entries
+        .into_iter()
+        .counts_by(|e| e.user_id)
+        .into_iter()
+        .sorted_by_cached_key(|(_, v)| -(*v as i32))
+        .take(DISCORD_EMBED_FIELDS_LIMIT as usize)
+        .collect();
+
+    let mut entries2 = vec![];
+    for (k, v) in entries.into_iter() {
+        entries2.push((get_nickname(ctx, &guild, k).await?, v, true));
+    }
+
+    let response = ctx
+        .send(|reply| {
+            reply.embed(|embed| {
+                let desc = hof.description.unwrap_or_default();
+                let desc = if entries2.is_empty() {
+                    let mix = if desc.is_empty() { "" } else { "\n\n" };
+                    format!("{}{}{}", desc, mix, "There are no entries.")
+                } else {
+                    desc
+                };
+                embed.description(desc);
+
+                embed.title(&hof.title).fields(entries2);
+
+                embed
+            })
+        })
+        .await?;
+    Ok(())
+}
+async fn show_user(ctx: Context<'_>, guild: GuildId, hof: String, user: User) -> Result<()> {
+    use crate::schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*};
+
+    let hof = hall_of_fame_tables
+        .filter(guild_id.eq::<i64>(guild.into()))
+        .filter(title.eq(&hof))
+        .first::<Table>(&mut ctx.data().db.get().unwrap())?;
+
+    let entries = hall_of_fame_entries
+        .filter(hof_id.eq(hof.id))
+        .filter(user_id.eq(user.id.0 as i64))
+        .load::<Entry>(&mut ctx.data().db.get().unwrap())?;
+
+    let entries: Vec<_> = entries
+        .into_iter()
+        .map(|e| {
+            format!(
+                "*{}*: {}",
+                e.creation_date,
+                e.description.unwrap_or(String::from("Missing reason"))
+            )
+        })
+        .collect();
+
+    let mut msg = MessageBuilder::new();
+    msg.push(format!("### {} entries for ", hof.title))
+        .mention(&user)
+        .push_line("");
+
+    for entry in entries.iter().rev() {
+        msg.push_line(format!("- {}", entry));
+    }
+
+    ctx.reply(msg.build()).await?;
 
     Ok(())
+}
+
+async fn get_nickname(ctx: Context<'_>, guild_id: &GuildId, id: i64) -> Result<String> {
+    let userid = UserId(id as u64);
+    let user = userid.to_user(ctx).await?;
+    let guild_nick = user.nick_in(ctx, guild_id).await;
+    Ok(guild_nick.unwrap_or(user.name))
 }
 
 #[derive(Debug, poise::Modal)]
 #[name = "Create Hall of Fame table"]
 struct HofCreationModal {
-    #[min_length = 5]
-    #[max_length = 100]
+    #[min_length = 4]
+    #[max_length = 64]
     title: String,
     #[paragraph]
-    #[max_length = 500]
+    #[max_length = 128]
     description: Option<String>,
 }
 
@@ -133,15 +206,25 @@ pub async fn create(ctx: poise::ApplicationContext<'_, Arc<CtxData>, Error>) -> 
 
     if let Some(data) = data {
         let guild = ctx.guild_id().unwrap();
-        // let time = OffsetDateTime::now_utc()
-        //    .format(&TIME_FORMAT.get().unwrap())
-        //    .unwrap();
+        let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
+
+        let desc = match data.description {
+            Some(s) => {
+                let desc = s.trim();
+                if desc.is_empty() {
+                    None
+                } else {
+                    Some(desc.to_string())
+                }
+            }
+            None => None,
+        };
 
         let new_hof = NewTable {
             guild_id: &(guild.0 as i64),
             title: &data.title,
-            description: data.description,
-            creation_date: &"", // TODO: fix
+            description: desc,
+            creation_date: &time,
         };
 
         let result = diesel::insert_into(hall_of_fame_tables)
@@ -156,7 +239,8 @@ pub async fn create(ctx: poise::ApplicationContext<'_, Arc<CtxData>, Error>) -> 
             _ => "Failure",
         };
 
-        ctx.reply(response).await?;
+        ctx.send(|reply| reply.content(response).reply(true).ephemeral(true))
+            .await?;
     }
 
     return Ok(());
@@ -167,21 +251,11 @@ pub async fn add(
     ctx: Context<'_>,
     #[autocomplete = "autocomplete"] hof: String,
     user: User,
-    reason: String,
+    #[max_length = 128] reason: String,
 ) -> Result<()> {
     use crate::schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*};
     let guild = ctx.guild_id().unwrap();
-
-    debug!("u:{user} r:{reason}");
-
-    if reason.len() > 256 {
-        ctx.reply(
-            "Reason is too long, it can be 256 characters long at
-most.",
-        )
-        .await?;
-        return Ok(());
-    }
+    let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
 
     let hof = hall_of_fame_tables
         .filter(guild_id.eq::<i64>(guild.into()))
@@ -192,14 +266,22 @@ most.",
         hof_id: &hof.id,
         user_id: &(user.id.0 as i64),
         description: Some(&reason),
-        creation_date: &"",
+        creation_date: &time,
     };
 
     let result = diesel::insert_into(hall_of_fame_entries)
         .values(&new_entry)
         .execute(&mut ctx.data().db.get().unwrap());
 
-    debug!("{:?}", result);
+    let msg = MessageBuilder::new()
+        .mention(&user)
+        .push(" was added to ")
+        .push_bold(&hof.title)
+        .push(": ")
+        .push_italic_safe(&reason)
+        .build();
+
+    ctx.reply(msg).await?;
 
     Ok(())
 }

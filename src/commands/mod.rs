@@ -1,6 +1,7 @@
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 use regex::Regex;
+use time::{format_description, format_description::FormatItem};
 
 use crate::{Context, Result};
 
@@ -15,6 +16,9 @@ pub mod todo;
 pub const DISCORD_EMBED_FIELDS_LIMIT: u32 = 24;
 
 static USER_PING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<@(\d+)>").unwrap());
+static TIME_FORMAT: LazyLock<Vec<FormatItem<'static>>> = LazyLock::new(|| {
+    format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap()
+});
 
 #[poise::command(track_edits, slash_command)]
 pub async fn help(

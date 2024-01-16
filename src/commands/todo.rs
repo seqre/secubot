@@ -29,12 +29,10 @@ use tokio_stream::{self as stream, StreamExt};
 use tracing::debug;
 
 use crate::{
-    commands::DISCORD_EMBED_FIELDS_LIMIT,
+    commands::{DISCORD_EMBED_FIELDS_LIMIT, TIME_FORMAT},
     models::todo::{NewTodo, Todo},
     Conn, Context, Result,
 };
-
-static TIME_FORMAT: OnceLock<Vec<FormatItem<'static>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum Priority {
@@ -160,10 +158,6 @@ impl TodoData {
                 (ChannelId(chnl as u64), AtomicI32::new(biggest_id + 1))
             })
             .collect::<HashMap<_, _>>();
-
-        let _ = TIME_FORMAT.set(
-            format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap(),
-        );
 
         Self {
             iterators: Mutex::new(iterators),
@@ -303,9 +297,7 @@ pub async fn add(
     let data = if content.len() > 1024 {
         "Content can't have more than 1024 characters.".to_string()
     } else {
-        let time = OffsetDateTime::now_utc()
-            .format(&TIME_FORMAT.get().unwrap())
-            .unwrap();
+        let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let nickname = match &assignee {
             Some(m) => get_member_nickname(m),
@@ -375,9 +367,7 @@ pub async fn delete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -
 pub async fn complete(ctx: Context<'_>, #[description = "TODO id"] todo_id: i64) -> Result<()> {
     use crate::schema::todos::dsl::{channel_id, completion_date, id, todo, todos};
 
-    let time = OffsetDateTime::now_utc()
-        .format(&TIME_FORMAT.get().unwrap())
-        .unwrap();
+    let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
 
     let completed: QueryResult<String> = diesel::update(todos)
         .filter(channel_id.eq(i64::from(ctx.channel_id())))

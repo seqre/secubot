@@ -32,8 +32,8 @@ impl HofData {
         self.hofs
             .read()
             .await
-            .get(&guild_id)
-            .map(|h| h.clone())
+            .get(guild_id)
+            .cloned()
             .unwrap_or_default()
     }
 }
@@ -243,7 +243,7 @@ pub async fn create(ctx: poise::ApplicationContext<'_, Arc<CtxData>, Error>) -> 
             .await?;
     }
 
-    return Ok(());
+    Ok(())
 }
 
 #[poise::command(slash_command)]

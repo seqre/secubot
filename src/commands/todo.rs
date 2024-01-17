@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicI32, Ordering},
-        Mutex, OnceLock,
+        Mutex,
     },
     time::Duration,
 };
@@ -24,7 +24,7 @@ use poise::{
     },
     SlashArgument,
 };
-use time::{format_description, format_description::FormatItem, OffsetDateTime};
+use time::{OffsetDateTime};
 use tokio_stream::{self as stream, StreamExt};
 use tracing::debug;
 

@@ -40,7 +40,7 @@ impl HofData {
 
 impl HofData {
     pub fn new(db: &Conn) -> Self {
-        use crate::schema::hall_of_fame_tables::dsl::*;
+        use crate::schema::hall_of_fame_tables::dsl::hall_of_fame_tables;
 
         let hofs = hall_of_fame_tables
             .load::<Table>(&mut db.get().unwrap())
@@ -96,7 +96,7 @@ pub async fn show(
 }
 
 async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
-    use crate::schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*};
+    use crate::schema::{hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id}, hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title}};
 
     let hof = hall_of_fame_tables
         .filter(guild_id.eq::<i64>(guild.into()))
@@ -116,11 +116,11 @@ async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
         .collect();
 
     let mut entries2 = vec![];
-    for (k, v) in entries.into_iter() {
+    for (k, v) in entries {
         entries2.push((get_nickname(ctx, &guild, k).await?, v, true));
     }
 
-    let response = ctx
+    let _response = ctx
         .send(|reply| {
             reply.embed(|embed| {
                 let desc = hof.description.unwrap_or_default();
@@ -141,7 +141,7 @@ async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
     Ok(())
 }
 async fn show_user(ctx: Context<'_>, guild: GuildId, hof: String, user: User) -> Result<()> {
-    use crate::schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*};
+    use crate::schema::{hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id, user_id}, hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title}};
 
     let hof = hall_of_fame_tables
         .filter(guild_id.eq::<i64>(guild.into()))
@@ -170,7 +170,7 @@ async fn show_user(ctx: Context<'_>, guild: GuildId, hof: String, user: User) ->
         .push_line("");
 
     for entry in entries.iter().rev() {
-        msg.push_line(format!("- {}", entry));
+        msg.push_line(format!("- {entry}"));
     }
 
     ctx.reply(msg.build()).await?;
@@ -200,7 +200,7 @@ struct HofCreationModal {
 pub async fn create(ctx: poise::ApplicationContext<'_, Arc<CtxData>, Error>) -> Result<()> {
     use poise::Modal as _;
 
-    use crate::schema::hall_of_fame_tables::dsl::*;
+    use crate::schema::hall_of_fame_tables::dsl::hall_of_fame_tables;
 
     let data = HofCreationModal::execute(ctx).await?;
 
@@ -253,7 +253,7 @@ pub async fn add(
     user: User,
     #[max_length = 128] reason: String,
 ) -> Result<()> {
-    use crate::schema::{hall_of_fame_entries::dsl::*, hall_of_fame_tables::dsl::*};
+    use crate::schema::{hall_of_fame_entries::dsl::hall_of_fame_entries, hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title}};
     let guild = ctx.guild_id().unwrap();
     let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
 
@@ -269,7 +269,7 @@ pub async fn add(
         creation_date: &time,
     };
 
-    let result = diesel::insert_into(hall_of_fame_entries)
+    let _result = diesel::insert_into(hall_of_fame_entries)
         .values(&new_entry)
         .execute(&mut ctx.data().db.get().unwrap());
 

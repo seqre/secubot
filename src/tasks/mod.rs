@@ -3,7 +3,7 @@ use std::sync::Arc;
 use poise::serenity_prelude::{async_trait, Http};
 use tokio::time::{sleep, Duration};
 
-use crate::{ctx_data::CtxData, settings::Feature, tasks::todo_reminder::TodoReminderTask};
+use crate::{ctx_data::CtxData, tasks::todo_reminder::TodoReminderTask};
 
 mod todo_reminder;
 

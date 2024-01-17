@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use itertools::Itertools;
-use poise::serenity_prelude::{async_trait, futures, CacheHttp, ChannelId, Http};
+use poise::serenity_prelude::{async_trait, CacheHttp, ChannelId, Http};
 use tokio::time::Duration;
 
-use crate::{ctx_data::CtxData, models::todo::Todo, settings::Feature, tasks::Task, Conn};
+use crate::{ctx_data::CtxData, models::todo::Todo, tasks::Task};
 
 pub struct TodoReminderTask {
     ctx_data: Arc<CtxData>,

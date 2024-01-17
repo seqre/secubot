@@ -2,16 +2,15 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     hash::Hash,
-    sync::Arc,
 };
 
 use config::{Config, ConfigError, Environment, File};
 use glob::glob;
-use poise::serenity_prelude::{Cache, CacheHttp, Channel, ChannelId, GuildId};
+use poise::serenity_prelude::{CacheHttp, Channel, ChannelId, GuildId};
 use serde_derive::Deserialize;
 use tracing::debug;
 
-use crate::schema::hall_of_fame_tables::guild_id;
+
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum Feature {
@@ -120,8 +119,7 @@ impl Settings {
         if let Some(Channel::Guild(guild)) = channel {
             self.guilds
                 .get(&guild.guild_id)
-                .map(|guild| guild.features.contains(feature))
-                .unwrap_or(default)
+                .map_or(default, |guild| guild.features.contains(feature))
         } else {
             default
         }

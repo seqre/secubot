@@ -3,12 +3,13 @@
 
 I'm not a programmer until I write my own Discord bot, right? And what is the best programming language to do so, if not Rust?
 
-The bot was written at first out of the [Cyber Warriors](https://techcyberwarriors.org/)' need for ping cannon replacement, and over time I just kept adding new features.
+The bot was written at first out of the [Cyber Warriors](https://techcyberwarriors.org/)' need for a ping cannon replacement, and over time I just kept adding new features.
 
 ## Features
-- The Mighty Ping Cannon - pings provided users for 10 minutes after which it times out, allows for adding and removing users while pinging
-- TODO lists - provides per-channel TODO lists backed by database, allows to specify assignee, it also posts periodical reminders about uncompleted todos
-- Bot versioning - allows for checking the latest release notes and see currently running version
+- **The Mighty Ping Cannon** - pings provided users for 10 minutes after which it times out, allows for adding and removing users while pinging
+- **TODO lists** - provides per-channel TODO lists backed by database, allows to specify assignee, it also posts periodical reminders about uncompleted todos
+- **Hall of Fame** - provides per-guild lists backed by database designed to allow count occurrences of something by the users with a provided reason
+- **Bot versioning** - allows for checking the latest release notes and see currently running version
 
 ## Running
 

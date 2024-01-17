@@ -18,7 +18,7 @@ use tracing::debug;
 
 use crate::{commands::USER_PING_REGEX, Context, Result};
 
-const PING_CHANNEL_BUFFER: usize = 15;
+const PING_CHANNEL_BUFFER: usize = 32;
 const PING_TIMEOUT: Duration = Duration::from_secs(60 * 10);
 
 #[derive(Debug)]
@@ -163,31 +163,31 @@ impl PingWorker {
 
     #[allow(unused_must_use)]
     pub async fn work(&mut self) {
-        let mut queue: Vec<ChannelId> = Vec::new();
+        let mut finished: Vec<ChannelId> = Vec::new();
         loop {
             self.pings.retain(|channel, ping_task| {
-                let mut leave = true;
                 if let Ok(ping_task) = ping_task.try_lock() {
                     if ping_task.is_done() {
-                        leave = false;
-                        queue.push(*channel);
+                        finished.push(*channel);
+                        return false;
                     }
                 }
-                leave
+                true
             });
 
             if let Some(http) = &self.http {
-                for channel in &queue {
+                for channel in &finished {
                     channel
                         .say(http, "The Ping Cannon shot enough shots.")
                         .await;
                 }
-                queue.clear();
+                finished.clear();
             }
 
             for (channel, ping_task) in &self.pings {
                 if let Ok(ping_task) = ping_task.try_lock() {
                     if let Some(http) = &self.http {
+                        // TODO: replace with map and intersperse once stabilized
                         let usrs: String =
                             ping_task.users.iter().fold(String::new(), |mut out, u| {
                                 let _ = write!(out, "<@!{}>", u.0);

@@ -37,21 +37,21 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 type Result<T> = anyhow::Result<T>;
 type Error = anyhow::Error;
-type Context<'a> = poise::Context<'a, Arc<CtxData>, anyhow::Error>;
+type Context<'a> = poise::Context<'a, Arc<CtxData>, Error>;
 type Conn = Pool<ConnectionManager<SqliteConnection>>;
 
-fn setup_db(db_url: &String) -> Conn {
+fn setup_db(db_url: &String) -> Result<Conn> {
     let conn_man = ConnectionManager::<SqliteConnection>::new(db_url);
     let pool =
         Pool::new(conn_man).unwrap_or_else(|_| panic!("Error creating pool for: {}", &db_url));
 
     debug!("Running database migrations");
-    match &pool.get().unwrap().run_pending_migrations(MIGRATIONS) {
+    match &pool.get()?.run_pending_migrations(MIGRATIONS) {
         Ok(_) => info!("Database migrations completed"),
         Err(e) => error!("Database migrations error: {:?}", e),
     };
 
-    pool
+    Ok(pool)
 }
 
 fn get_intents() -> serenity::GatewayIntents {
@@ -87,7 +87,7 @@ async fn main() {
     clean_settings.discord_token = String::from("<REDACTED>");
     info!("Parsed configuration: {:?}", &clean_settings);
 
-    let conn = setup_db(&settings.database.url);
+    let conn = setup_db(&settings.database.url).expect("Couldn't initialize database connection");
     let ctx_data = Arc::new(CtxData::new(conn, clean_settings));
 
     let options = poise::FrameworkOptions {
@@ -114,5 +114,5 @@ async fn main() {
         .setup(|ctx, ready, framework| Box::pin(framework::setup(ctx, ready, framework, ctx_data)))
         .run()
         .await
-        .unwrap();
+        .expect("Couldn't initialize bot")
 }

@@ -96,7 +96,10 @@ pub async fn show(
 }
 
 async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
-    use crate::schema::{hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id}, hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title}};
+    use crate::schema::{
+        hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id},
+        hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title},
+    };
 
     let hof = hall_of_fame_tables
         .filter(guild_id.eq::<i64>(guild.into()))
@@ -138,10 +141,14 @@ async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
             })
         })
         .await?;
+
     Ok(())
 }
 async fn show_user(ctx: Context<'_>, guild: GuildId, hof: String, user: User) -> Result<()> {
-    use crate::schema::{hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id, user_id}, hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title}};
+    use crate::schema::{
+        hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id, user_id},
+        hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title},
+    };
 
     let hof = hall_of_fame_tables
         .filter(guild_id.eq::<i64>(guild.into()))
@@ -253,7 +260,10 @@ pub async fn add(
     user: User,
     #[max_length = 128] reason: String,
 ) -> Result<()> {
-    use crate::schema::{hall_of_fame_entries::dsl::hall_of_fame_entries, hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title}};
+    use crate::schema::{
+        hall_of_fame_entries::dsl::hall_of_fame_entries,
+        hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title},
+    };
     let guild = ctx.guild_id().unwrap();
     let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
 

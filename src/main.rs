@@ -31,6 +31,7 @@ mod settings;
 
 #[allow(clippy::module_name_repetitions)]
 mod tasks;
+mod utils;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -61,16 +62,6 @@ fn get_intents() -> serenity::GatewayIntents {
     }
     base
 }
-
-// fn setup_logging(log_level: &str) {
-//     let _log_level = LevelFilter::from_str(log_level).unwrap_or_else(|_| {
-//         warn!("Incorrect log_level in config, using Debug");
-//         LevelFilter::DEBUG
-//     });
-//     // env_logger::Builder::new()
-//     //    .filter_module("secubot", log_level)
-//     //    .init();
-// }
 
 #[tokio::main]
 async fn main() {

@@ -58,7 +58,7 @@ pub async fn event_handler<'a>(
             };
 
             debug!(
-                "INTR: cmd[{}] args [{}] channelid[{}] userid[{}] username[{}]",
+                "INTR: cmd[{}] args[{}] channelid[{}] userid[{}] username[{}]",
                 data.name,
                 args.trim_start(),
                 channel_id.0,
@@ -79,7 +79,7 @@ pub async fn event_handler<'a>(
                 .await
             {
                 if let Err(e) = channel_id.say(&ctx, "<deleted>").await {
-                    debug!("Error while sending <deleted>: {:#?}", e);
+                    debug!("Error while sending <deleted>: {:?}", e);
                 };
             }
         }

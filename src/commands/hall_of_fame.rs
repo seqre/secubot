@@ -57,6 +57,12 @@ impl HofData {
     }
 }
 
+/// Manage guild's Hall of Fames (HoF)
+#[doc = ""]
+#[doc = "The following commands are supported (`{}` indicate mandatory argument, `[]` indicate optional argument):"]
+#[doc = "- `/todo create` - opens a modal to create HoF"]
+#[doc = "- `/todo show [user]` - shows HoF ranking, if `user` is supplied, shows only entries for that user"]
+#[doc = "- `/todo add {hof} {user} {reason}` - adds HoF entry for a specific `user` because of `reason`"]
 #[allow(clippy::unused_async)]
 #[poise::command(slash_command, subcommands("show", "create", "add"))]
 pub async fn hof(_ctx: Context<'_>) -> Result<()> {
@@ -79,7 +85,7 @@ async fn autocomplete<'a>(ctx: Context<'_>, partial: &'a str) -> HashSet<String>
         .collect()
 }
 
-/// List Hall of Fame tables
+/// Show HoF ranking or list user entries for specific HoF
 #[poise::command(slash_command)]
 pub async fn show(
     ctx: Context<'_>,
@@ -200,6 +206,7 @@ struct HofCreationModal {
     description: Option<String>,
 }
 
+/// Open a modal to create HoF
 #[poise::command(slash_command)]
 pub async fn create(ctx: poise::ApplicationContext<'_, Arc<CtxData>, Error>) -> Result<()> {
     use poise::Modal as _;
@@ -250,6 +257,7 @@ pub async fn create(ctx: poise::ApplicationContext<'_, Arc<CtxData>, Error>) -> 
     Ok(())
 }
 
+/// Add HoF entry for a specific user
 #[poise::command(slash_command)]
 pub async fn add(
     ctx: Context<'_>,

@@ -41,7 +41,7 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-debug-
-      - run: cargo clippy -- -Dclippy::all -Wclippy::pedantic
+      - run: cargo clippy --no-deps -- -Dclippy::all -Wclippy::pedantic
 
 
   rustfmt:

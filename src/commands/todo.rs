@@ -24,14 +24,14 @@ use poise::{
     },
     SlashArgument,
 };
-use time::{OffsetDateTime};
+use time::OffsetDateTime;
 use tokio_stream::{self as stream, StreamExt};
 use tracing::debug;
 
 use crate::{
     commands::{DISCORD_EMBED_FIELDS_LIMIT, TIME_FORMAT},
     models::todo::{NewTodo, Todo},
-    Conn, Context, Result,
+    utils, Conn, Context, Result,
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -67,20 +67,6 @@ impl std::fmt::Display for Priority {
 
 #[async_trait]
 impl SlashArgument for Priority {
-    fn choices() -> Vec<poise::CommandParameterChoice> {
-        Priority::VALUES
-            .iter()
-            .map(|&s| poise::CommandParameterChoice {
-                name: String::from(s),
-                localizations: HashMap::default(),
-            })
-            .collect()
-    }
-
-    fn create(builder: &mut poise::serenity_prelude::CreateApplicationCommandOption) {
-        builder.kind(poise::serenity_prelude::CommandOptionType::Number);
-    }
-
     async fn extract<'life0, 'life1, 'life2>(
         _ctx: &'life0 poise::serenity_prelude::Context,
         _interaction: poise::ApplicationCommandOrAutocompleteInteraction<'life1>,
@@ -98,6 +84,20 @@ impl SlashArgument for Priority {
         };
 
         Ok(Priority::from(priority))
+    }
+
+    fn create(builder: &mut poise::serenity_prelude::CreateApplicationCommandOption) {
+        builder.kind(poise::serenity_prelude::CommandOptionType::Number);
+    }
+
+    fn choices() -> Vec<poise::CommandParameterChoice> {
+        Priority::VALUES
+            .iter()
+            .map(|&s| poise::CommandParameterChoice {
+                name: String::from(s),
+                localizations: HashMap::default(),
+            })
+            .collect()
     }
 }
 
@@ -124,7 +124,7 @@ impl TodoEntry {
                 let userid = UserId(id as u64);
                 let guildid = ctx.guild_id().unwrap();
                 let member = guildid.member(ctx, userid).await;
-                member.ok().map(|m| get_member_nickname(&m))
+                member.ok().map(|m| utils::get_nick_from_member(&m))
             }
             None => None,
         };
@@ -292,7 +292,7 @@ pub async fn add(
     #[description = "TODO assignee"] assignee: Option<Member>,
     #[description = "TODO priority"] priority: Option<Priority>,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::todos;
+    use crate::{schema::todos::dsl::todos, utils};
 
     let data = if content.len() > 1024 {
         "Content can't have more than 1024 characters.".to_string()
@@ -300,7 +300,7 @@ pub async fn add(
         let time = OffsetDateTime::now_utc().format(&TIME_FORMAT).unwrap();
         let new_id = ctx.data().todo_data.get_id(ctx.channel_id());
         let nickname = match &assignee {
-            Some(m) => get_member_nickname(m),
+            Some(m) => utils::get_nick_from_member(m),
             None => "no one".to_string(),
         };
         let assignee = assignee.map(|m| m.user.id.0 as i64);
@@ -425,10 +425,13 @@ pub async fn assign(
     #[description = "TODO id"] todo_id: i64,
     #[description = "TODO new assignee"] new_assignee: Option<Member>,
 ) -> Result<()> {
-    use crate::schema::todos::dsl::{assignee, channel_id, id, todo, todos};
+    use crate::{
+        schema::todos::dsl::{assignee, channel_id, id, todo, todos},
+        utils,
+    };
 
     let nickname = match &new_assignee {
-        Some(m) => get_member_nickname(m),
+        Some(m) => utils::get_nick_from_member(m),
         None => "no one".to_string(),
     };
     let new_assignee = new_assignee.map(|m| m.user.id.0 as i64);
@@ -559,14 +562,6 @@ pub async fn set_priority(
     respond_text(ctx, data, true).await;
 
     Ok(())
-}
-
-fn get_member_nickname(member: &Member) -> String {
-    if let Some(nick) = &member.nick {
-        return nick.to_string();
-    }
-
-    member.user.name.to_string()
 }
 
 #[derive(Debug, PartialEq)]

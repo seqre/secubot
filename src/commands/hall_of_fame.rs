@@ -22,23 +22,6 @@ pub struct HofData {
 }
 
 impl HofData {
-    pub async fn add_table(&self, guild_id: GuildId, table: String) {
-        let mut hofs = self.hofs.write().await;
-        hofs.entry(guild_id).or_default().insert(table);
-    }
-
-    pub async fn get_hof_tables(&self, guild_id: &GuildId) -> HashSet<String> {
-        // TODO: allow dirty read
-        self.hofs
-            .read()
-            .await
-            .get(guild_id)
-            .cloned()
-            .unwrap_or_default()
-    }
-}
-
-impl HofData {
     pub fn new(db: &Conn) -> Self {
         use crate::schema::hall_of_fame_tables::dsl::hall_of_fame_tables;
 
@@ -57,6 +40,21 @@ impl HofData {
             hofs: RwLock::new(hofs),
         }
     }
+
+    pub async fn add_table(&self, guild_id: GuildId, table: String) {
+        let mut hofs = self.hofs.write().await;
+        hofs.entry(guild_id).or_default().insert(table);
+    }
+
+    pub async fn get_hof_tables(&self, guild_id: &GuildId) -> HashSet<String> {
+        // TODO: allow dirty read
+        self.hofs
+            .read()
+            .await
+            .get(guild_id)
+            .cloned()
+            .unwrap_or_default()
+    }
 }
 
 #[allow(clippy::unused_async)]
@@ -66,7 +64,10 @@ pub async fn hof(_ctx: Context<'_>) -> Result<()> {
 }
 
 async fn autocomplete<'a>(ctx: Context<'_>, partial: &'a str) -> HashSet<String> {
-    let guild = ctx.guild_id().unwrap();
+    let guild = match ctx.guild_id() {
+        Some(guild) => guild,
+        None => return HashSet::new(),
+    };
 
     ctx.data()
         .hof_data
@@ -96,9 +97,12 @@ pub async fn show(
 }
 
 async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
-    use crate::schema::{
-        hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id},
-        hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title},
+    use crate::{
+        schema::{
+            hall_of_fame_entries::dsl::{hall_of_fame_entries, hof_id},
+            hall_of_fame_tables::dsl::{guild_id, hall_of_fame_tables, title},
+        },
+        utils,
     };
 
     let hof = hall_of_fame_tables
@@ -120,7 +124,11 @@ async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
 
     let mut entries2 = vec![];
     for (k, v) in entries {
-        entries2.push((get_nickname(ctx, &guild, k).await?, v, true));
+        entries2.push((
+            utils::get_nick_from_id(ctx, &guild, UserId(k as u64)).await?,
+            v,
+            true,
+        ));
     }
 
     let _response = ctx
@@ -129,15 +137,11 @@ async fn show_hof(ctx: Context<'_>, guild: GuildId, hof: String) -> Result<()> {
                 let desc = hof.description.unwrap_or_default();
                 let desc = if entries2.is_empty() {
                     let mix = if desc.is_empty() { "" } else { "\n\n" };
-                    format!("{}{}{}", desc, mix, "There are no entries.")
+                    format!("{desc}{mix}There are no entries.")
                 } else {
                     desc
                 };
-                embed.description(desc);
-
-                embed.title(&hof.title).fields(entries2);
-
-                embed
+                embed.title(&hof.title).description(desc).fields(entries2)
             })
         })
         .await?;
@@ -183,13 +187,6 @@ async fn show_user(ctx: Context<'_>, guild: GuildId, hof: String, user: User) ->
     ctx.reply(msg.build()).await?;
 
     Ok(())
-}
-
-async fn get_nickname(ctx: Context<'_>, guild_id: &GuildId, id: i64) -> Result<String> {
-    let userid = UserId(id as u64);
-    let user = userid.to_user(ctx).await?;
-    let guild_nick = user.nick_in(ctx, guild_id).await;
-    Ok(guild_nick.unwrap_or(user.name))
 }
 
 #[derive(Debug, poise::Modal)]

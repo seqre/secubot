@@ -10,8 +10,6 @@ use poise::serenity_prelude::{CacheHttp, Channel, ChannelId, GuildId};
 use serde_derive::Deserialize;
 use tracing::debug;
 
-
-
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum Feature {
     NotifyOnDeletedMessages,
@@ -41,13 +39,6 @@ impl Default for Database {
     }
 }
 
-//#[derive(Debug, Deserialize, Clone)]
-//#[allow(unused)]
-// pub struct Commands {
-//    pub globals: Vec<String>,
-//    pub guilds: Vec<Guild>,
-//}
-
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
 pub struct BotSettings {
@@ -68,14 +59,12 @@ impl Default for BotSettings {
 pub struct Settings {
     // pub log_level: String,
     pub discord_token: String,
-    // pub application_id: u64,
     #[serde(default)]
     pub database: Database,
     #[serde(default)]
     pub global: BotSettings,
     #[serde(default)]
     pub guilds: HashMap<GuildId, BotSettings>,
-    // pub commands: Commands,
 }
 
 impl Settings {
@@ -93,8 +82,6 @@ impl Settings {
 
         let config = Config::builder()
             .add_source(File::with_name(&format!("{cwd}/config")).required(false))
-            // .add_source(File::with_name(&format!("{cwd}/{mode}")).required(false))
-            // .add_source(File::with_name(&format!("{prefix}/commands")))
             .add_source(
                 glob(&format!("{cwd}/config/*"))
                     .unwrap()

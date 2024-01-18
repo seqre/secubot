@@ -1,4 +1,4 @@
-use std::sync::{LazyLock};
+use std::sync::LazyLock;
 
 use regex::Regex;
 use time::{format_description, format_description::FormatItem};

@@ -15,7 +15,7 @@ exclude = ["/.github/", "/config/"]
 maintenance = { status = "experimental" }
 
 [dependencies]
-poise = { version = "0.5" }
+poise = { version = "0.6" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 tokio-stream = { version = "0.1" }
 diesel = { version = "2.1", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2"] }
@@ -25,8 +25,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_derive = { version = "1.0" }
 regex = { version = "1.10" }
 lazy_static = { version = "1.4" }
-itertools = { version = "0.12.0" }
-config = { version = "0.13" }
+itertools = { version = "0.12.1" }
+config = { version = "0.14" }
 glob = { version = "0.3" }
 octocrab = { version = "0.33" }
 anyhow = { version = "1.0" }

@@ -15,7 +15,7 @@ exclude = ["/.github/", "/config/"]
 maintenance = { status = "experimental" }
 
 [dependencies]
-poise = { version = "0.5" }
+poise = { version = "0.6" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 tokio-stream = { version = "0.1" }
 diesel = { version = "2.1", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2"] }

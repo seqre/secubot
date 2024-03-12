@@ -44,7 +44,7 @@ jobs:
         run: mv target/release/secubot target/release/secubot-${{ matrix.target }}
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: target/release/secubot-*
 

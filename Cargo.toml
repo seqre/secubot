@@ -24,7 +24,7 @@ time = { version = "0.3"}
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = { version = "1.0" }
 regex = { version = "1.10" }
-lazy_static = { version = "1.4" }
+lazy_static = { version = "1.5" }
 itertools = { version = "0.13.0" }
 config = { version = "0.14" }
 glob = { version = "0.3" }

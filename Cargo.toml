@@ -23,12 +23,12 @@ diesel_migrations = { version = "2.2" }
 time = { version = "0.3"}
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = { version = "1.0" }
-regex = { version = "1.10" }
+regex = { version = "1.11" }
 lazy_static = { version = "1.5" }
 itertools = { version = "0.13.0" }
 config = { version = "0.14" }
 glob = { version = "0.3" }
-octocrab = { version = "0.39" }
+octocrab = { version = "0.40" }
 anyhow = { version = "1.0" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

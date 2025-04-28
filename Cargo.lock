@@ -43,9 +43,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.97"
+version = "1.0.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
+checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "arc-swap"
@@ -402,9 +402,9 @@ dependencies = [
 
 [[package]]
 name = "diesel"
-version = "2.2.9"
+version = "2.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34d3950690ba3a6910126162b47e775e203006d4242a15de912bec6c0a695153"
+checksum = "ff3e1edb1f37b4953dd5176916347289ed43d7119cc2e6c7c3f7849ff44ea506"
 dependencies = [
  "diesel_derives",
  "libsqlite3-sys",

@@ -22,6 +22,7 @@ use crate::{
 
 #[allow(clippy::module_name_repetitions)]
 mod commands;
+mod integrations;
 
 mod ctx_data;
 mod framework;
@@ -89,6 +90,7 @@ async fn main() {
             changelog::version(),
             ping::ping(),
             todo::todo(),
+            commands::gh::gh(),
             hall_of_fame::hof(),
         ],
         event_handler: |ctx, event, framework, data| {
@@ -102,8 +104,37 @@ async fn main() {
         .token(&settings.discord_token)
         .options(options)
         .intents(get_intents())
-        .setup(|ctx, ready, framework| Box::pin(framework::setup(ctx, ready, framework, ctx_data)))
+        .setup(|ctx, ready, framework| {
+            Box::pin(async move {
+                // Auto-register slash commands on startup.
+                // Set SCBT__REGISTER_GLOBAL=1 to register globally; otherwise per-guild.
+                use poise::builtins::{register_globally, register_in_guild};
+
+                let register_global =
+                    std::env::var("SCBT__REGISTER_GLOBAL").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+
+                if register_global {
+                    if let Err(e) = register_globally(ctx, &framework.options().commands).await {
+                        tracing::warn!("Global command registration failed: {:?}", e);
+                    } else {
+                        tracing::info!("Global commands registered");
+                    }
+                } else {
+                    // Register for each guild the bot is currently in (instant in that guild)
+                    for g in &ready.guilds {
+                        if let Err(e) = register_in_guild(ctx, &framework.options().commands, g.id).await {
+                            tracing::warn!("Guild command registration failed for {}: {:?}", g.id, e);
+                        } else {
+                            tracing::info!("Commands registered in guild {}", g.id);
+                        }
+                    }
+                }
+
+                framework::setup(ctx, ready, framework, ctx_data).await
+            })
+        })
         .run()
         .await
         .expect("Couldn't initialize bot")
 }
+

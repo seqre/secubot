@@ -4,11 +4,10 @@ use regex::Regex;
 use time::{format_description, format_description::FormatItem};
 
 use crate::{Context, Result};
-
+pub mod gh;
 pub mod changelog;
 pub mod hall_of_fame;
 pub mod ping;
-
 #[allow(clippy::cast_precision_loss)]
 #[allow(clippy::cast_sign_loss)]
 pub mod todo;

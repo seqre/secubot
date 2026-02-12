@@ -10,6 +10,8 @@ use poise::serenity_prelude::{CacheHttp, Channel, ChannelId, GuildId};
 use serde_derive::Deserialize;
 use tracing::debug;
 
+/* ─────────────────────────── Features ─────────────────────────── */
+
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub enum Feature {
     NotifyOnDeletedMessages,
@@ -25,6 +27,8 @@ impl Feature {
     }
 }
 
+/* ─────────────────────────── Database ─────────────────────────── */
+
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
 pub struct Database {
@@ -33,11 +37,11 @@ pub struct Database {
 
 impl Default for Database {
     fn default() -> Self {
-        Self {
-            url: "db.sqlite".to_string(),
-        }
+        Self { url: "db.sqlite".to_string() }
     }
 }
+
+/* ─────────────────────────── Bot settings ─────────────────────────── */
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
@@ -48,11 +52,48 @@ pub struct BotSettings {
 
 impl Default for BotSettings {
     fn default() -> Self {
+        Self { features: Feature::all() }
+    }
+}
+
+/* ─────────────────────────── GitHub settings ─────────────────────────── */
+
+fn default_github_labels() -> Vec<String> {
+    vec!["todo".into(), "triage".into()]
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct GithubSettings {
+    /// Default repository in "owner/repo" form, used when no channel override exists.
+    #[serde(default)]
+    pub repo: String,
+    /// PAT or GitHub App installation token (read/write issues at minimum).
+    #[serde(default)]
+    pub token: String,
+    /// Default labels to apply to created issues.
+    #[serde(default = "default_github_labels")]
+    pub default_labels: Vec<String>,
+    /// If non-empty, only these channel IDs are allowed to mirror to GitHub.
+    #[serde(default)]
+    pub allowed_channels: HashSet<u64>,
+    /// Channel-specific repo mapping: channel_id -> "owner/repo".
+    #[serde(default)]
+    pub channel_map: HashMap<u64, String>,
+}
+
+impl Default for GithubSettings {
+    fn default() -> Self {
         Self {
-            features: Feature::all(),
+            repo: String::new(),
+            token: String::new(),
+            default_labels: default_github_labels(),
+            allowed_channels: HashSet::new(),
+            channel_map: HashMap::new(),
         }
     }
 }
+
+/* ─────────────────────────── Root Settings ─────────────────────────── */
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
@@ -65,6 +106,10 @@ pub struct Settings {
     pub global: BotSettings,
     #[serde(default)]
     pub guilds: HashMap<GuildId, BotSettings>,
+
+    /// GitHub integration & routing config.
+    #[serde(default)]
+    pub github: GithubSettings,
 }
 
 impl Settings {
@@ -73,13 +118,14 @@ impl Settings {
             Ok(cwd) => cwd.display().to_string(),
             Err(_) => ".".to_string(),
         };
-        // let mode = env::var("SCBT_RUN_MODE").unwrap_or_else(|_| "dev".into());
 
         debug!(
             "Looking for configuration file {cwd}/config and/or configuration files in {cwd}{}",
             "/config/"
         );
 
+        // Load: base file `./config` (any extension), all `./config/*`, then env.
+        // ENV mapping: SCBT__FOO__BAR -> foo.bar ; lists split by comma.
         let config = Config::builder()
             .add_source(File::with_name(&format!("{cwd}/config")).required(false))
             .add_source(
@@ -88,7 +134,11 @@ impl Settings {
                     .map(|path| File::from(path.unwrap()))
                     .collect::<Vec<_>>(),
             )
-            .add_source(Environment::with_prefix("SCBT").separator("__"))
+            .add_source(
+                Environment::with_prefix("SCBT")
+                    .separator("__")
+                    .list_separator(","), // e.g. SCBT__GITHUB__DEFAULT_LABELS=todo,triage
+            )
             .build()?;
 
         config.try_deserialize()
@@ -112,3 +162,4 @@ impl Settings {
         }
     }
 }
+

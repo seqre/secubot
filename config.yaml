@@ -2,3 +2,10 @@ database:
   url: "db.sqlite"
 
 discord_token: "token"
+
+github:
+  repo: <user>/<repo>
+  token: "github_token"
+  default_labels: ["todo", "triage"]
+  allowed_channels:
+    - <channel_id>

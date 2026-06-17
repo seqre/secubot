@@ -17,6 +17,6 @@ LABEL org.opencontainers.image.source="https://github.com/seqre/secubot"
 LABEL org.opencontainers.image.description="Yet another Discord bot in Rust!"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apt-get update && apt-get install -y libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libsqlite3-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/local/cargo/bin/secubot /usr/local/bin/secubot
 CMD ["secubot"]
